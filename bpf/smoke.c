@@ -28,7 +28,7 @@ static void on_sig(int sig) { (void)sig; stop = 1; }
 
 static int quiet_libbpf(enum libbpf_print_level lvl, const char *fmt, va_list ap)
 {
-    if (lvl == LIBBPF_PRINT_DEBUG)
+    if (lvl == LIBBPF_DEBUG)
         return 0;
     return vfprintf(stderr, fmt, ap);
 }

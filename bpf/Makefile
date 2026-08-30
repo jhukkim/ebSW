@@ -28,6 +28,10 @@ else
 endif
 
 .PHONY: all clean check
+# make 는 %.bpf.o · %.skel.h 를 중간 산출물로 보고 빌드 끝에 지운다.
+# 매번 재컴파일하게 되고, bpftool prog dump 로 들여다볼 수도 없다.
+.SECONDARY:
+
 all: smoke
 
 # ── BTF ─────────────────────────────────────────────────────────────
