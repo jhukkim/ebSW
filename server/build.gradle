@@ -1,0 +1,85 @@
+// 버전은 docs/session-warrant-tech-stack.html §02 「버전 고정표」 기준.
+// 커널 프로젝트에서 "최신"은 위험한 단어다 — 팀 전원이 같은 숫자를 쓰는지부터 맞추고 시작한다.
+//
+// 주의: Spring Boot 4 에서 스타터 이름이 대거 바뀌었다 (web → webmvc, oauth2-client →
+// security-oauth2-client, flyway 전용 스타터 신설). Boot 3 시절 예제를 그대로 옮기면
+// "Could not find ..." 로 실패한다.
+
+plugins {
+    id 'java'
+    id 'org.springframework.boot'       version '4.1.1'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.google.protobuf'            version '0.9.6'
+}
+
+group = 'io.seswar'
+version = '0.1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        // Spring Boot 4.1 은 17~26 을 지원하지만 LTS 인 25 로 고정한다.
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories { mavenCentral() }
+
+// protobuf-gradle-plugin 은 BOM 이 관리하는 버전을 자동으로 못 읽으므로 여기서 명시한다.
+// spring-boot-dependencies 4.1.1 이 관리하는 값과 반드시 같아야 한다:
+//   protobuf-java 4.35.1 · grpc-java 1.83.1 · spring-grpc 1.1.1
+// Boot 버전을 올릴 때 이 두 줄을 같이 확인할 것.
+ext {
+    protobufVersion = '4.35.1'
+    grpcVersion     = '1.83.1'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'       // MVC + 가상 스레드. WebFlux 는 쓰지 않는다
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // 영장 push (서버 스트리밍) · 감사 이벤트 (클라이언트 스트리밍).
+    // Spring Boot 4 가 spring-grpc 를 흡수했다 — org.springframework.grpc 스타터를
+    // 따로 붙이지 않는다. 자세한 경위는 README 참조.
+    implementation 'org.springframework.boot:spring-boot-starter-grpc-server'
+
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly    'org.postgresql:postgresql'
+
+    // 영장 서명은 JDK 내장 Ed25519 (JDK 15+). BouncyCastle 을 넣을 이유가 없다.
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-grpc-server-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testRuntimeOnly    'org.junit.platform:junit-platform-launcher'
+}
+
+// proto/ 는 팀 간 계약이다. 커널(struct warrant) · 서버 엔티티 · 테스트 픽스처가
+// 전부 이 한 파일에서 나와야 하며, 여기가 어긋나면 그 순간부터 디버깅이 지옥이 된다.
+sourceSets {
+    main {
+        proto { srcDir '../proto' }
+    }
+}
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${protobufVersion}" }
+    plugins {
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
+    }
+    generateProtoTasks {
+        all()*.plugins { grpc {} }
+    }
+}
+
+tasks.named('test') { useJUnitPlatform() }

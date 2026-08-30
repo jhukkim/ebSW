@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session Warrant · eBPF 스캔 필드</title>
+<style>
+  :root {
+    color-scheme: light;
+    --plane:      #EDF0EE;
+    --surface:    #FAFBFA;
+    --surface-2:  #E2E7E4;
+    --ink:        #101614;
+    --ink-2:      #495450;
+    --ink-3:      #7E8A85;
+    --rule:       #D9DEDB;
+    --rule-2:     #C2C9C5;
+    --accent:     #1E5A3C;
+    --accent-ink: #164630;
+    --accent-wash:#DFEBE4;
+    --deny:       #B33A32;
+    --deny-wash:  #F6E4E2;
+    --mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --plane:      #0A0D0C;
+      --surface:    #141917;
+      --surface-2:  #1E2421;
+      --ink:        #EDF2EF;
+      --ink-2:      #A2ADA8;
+      --ink-3:      #737E79;
+      --rule:       #262D2A;
+      --rule-2:     #363E3A;
+      --accent:     #63C08D;
+      --accent-ink: #8AD5AB;
+      --accent-wash:#122A1E;
+      --deny:       #E4756B;
+      --deny-wash:  #2C1715;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane:      #0A0D0C;
+    --surface:    #141917;
+    --surface-2:  #1E2421;
+    --ink:        #EDF2EF;
+    --ink-2:      #A2ADA8;
+    --ink-3:      #737E79;
+    --rule:       #262D2A;
+    --rule-2:     #363E3A;
+    --accent:     #63C08D;
+    --accent-ink: #8AD5AB;
+    --accent-wash:#122A1E;
+    --deny:       #E4756B;
+    --deny-wash:  #2C1715;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--plane); color: var(--ink);
+    font-family: var(--sans); font-size: 16px; line-height: 1.75;
+    margin: 0; padding: 0 20px 90px; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+
+  /* masthead */
+  .mast { padding: 76px 0 36px; }
+  .kicker {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 22px;
+  }
+  h1 {
+    font-size: clamp(40px, 7.4vw, 70px); line-height: 1;
+    letter-spacing: -0.04em; font-weight: 800; margin: 0; text-wrap: balance;
+  }
+  .thesis {
+    font-size: clamp(17px, 2.2vw, 21px); line-height: 1.55; color: var(--ink-2);
+    max-width: 45ch; margin: 22px 0 0; text-wrap: pretty;
+  }
+  .thesis b { color: var(--ink); font-weight: 600; }
+  .mast-meta {
+    display: flex; flex-wrap: wrap; gap: 8px 26px;
+    margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--rule-2);
+    font-family: var(--mono); font-size: 12px; color: var(--ink-3);
+  }
+  .mast-meta b { color: var(--ink-2); font-weight: 500; }
+
+  /* summary */
+  .summary {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 24px 26px; margin: 30px 0 0;
+  }
+  .summary h2 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-3);
+    margin: 0 0 14px; font-weight: 500;
+  }
+  .summary ul { margin: 0; max-width: none; }
+  .summary li { font-size: 15px; color: var(--ink-2); margin-bottom: 9px; }
+  .summary li b { color: var(--ink); font-weight: 650; }
+
+  /* part divider */
+  .part {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 20px; margin: 68px 0 0; padding: 14px 0 12px;
+    border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule-2);
+  }
+  .part .pn {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .part .pt {
+    font-size: 19px; font-weight: 700; letter-spacing: -0.02em;
+  }
+
+  section { padding: 44px 0; border-top: 1px solid var(--rule); }
+  section.first { border-top: 0; }
+  .sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+  .num {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    color: var(--accent-ink); border: 1px solid var(--accent);
+    border-radius: 3px; padding: 2px 8px; flex: none;
+  }
+  h2.h {
+    font-size: clamp(22px, 3.2vw, 30px); line-height: 1.18;
+    letter-spacing: -0.026em; font-weight: 750; margin: 0; text-wrap: balance;
+  }
+  h3 { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; margin: 28px 0 10px; }
+  p { margin: 0 0 18px; max-width: 68ch; text-wrap: pretty; }
+  .lede { font-size: 17px; color: var(--ink-2); }
+  .lede b, .lede strong { color: var(--ink); }
+  strong { font-weight: 650; }
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--surface-2); padding: 1px 5px; border-radius: 3px;
+  }
+  ul { margin: 0 0 20px; padding-left: 0; list-style: none; max-width: 68ch; }
+  ul li { position: relative; padding-left: 20px; margin-bottom: 11px; text-wrap: pretty; }
+  ul li::before {
+    content: ""; position: absolute; left: 2px; top: 12px;
+    width: 6px; height: 1px; background: var(--rule-2);
+  }
+
+  /* ticket */
+  .ticket {
+    background: var(--surface); border: 1px solid var(--rule-2);
+    border-radius: 6px; max-width: 520px; margin: 0 0 24px; overflow: hidden;
+  }
+  .ticket-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 14px 20px; background: var(--accent-wash); color: var(--accent-ink);
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .ticket-body { padding: 6px 20px 18px; }
+  .trow {
+    display: grid; grid-template-columns: 92px 1fr; gap: 0 14px;
+    padding: 9px 0; border-bottom: 1px dashed var(--rule); font-size: 14px;
+  }
+  .trow:last-child { border-bottom: 0; }
+  .tk {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-3); padding-top: 3px;
+  }
+  .tv { font-family: var(--mono); font-size: 13.5px; color: var(--ink); line-height: 1.6; }
+  .tv .off { color: var(--ink-3); }
+
+  /* figures */
+  figure { margin: 8px 0 26px; }
+  .fig-shell {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 22px 18px; overflow-x: auto;
+  }
+  .fig-shell svg { display: block; max-width: 100%; height: auto; margin: 0 auto; min-width: 600px; }
+  svg text { font-family: var(--sans); }
+  svg text.m { font-family: var(--mono); }
+  figcaption {
+    font-size: 13.5px; color: var(--ink-2);
+    margin-top: 14px; line-height: 1.65; max-width: 68ch;
+  }
+
+  pre {
+    font-family: var(--mono); font-size: 13px; line-height: 1.65;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent); border-radius: 0 5px 5px 0;
+    padding: 16px 20px; margin: 0 0 22px; overflow-x: auto; color: var(--ink-2);
+  }
+  pre b { color: var(--ink); font-weight: 600; }
+  pre i { color: var(--ink-3); font-style: normal; }
+
+  .table-scroll { overflow-x: auto; margin: 0 0 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 640px; }
+  thead th {
+    text-align: left; font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3);
+    padding: 0 14px 8px 0; border-bottom: 1px solid var(--rule-2); white-space: nowrap;
+  }
+  tbody td { padding: 11px 14px 11px 0; border-bottom: 1px solid var(--rule); vertical-align: top; line-height: 1.5; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.name { font-weight: 600; }
+  td.mono { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+  td.dim { color: var(--ink-2); }
+
+  .callout {
+    background: var(--accent-wash); border-radius: 6px;
+    padding: 18px 22px; margin: 0 0 24px; font-size: 15px; line-height: 1.65;
+  }
+  .callout.warn { background: var(--deny-wash); }
+  .callout .ct {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent-ink);
+    display: block; margin-bottom: 6px;
+  }
+  .callout.warn .ct { color: var(--deny); }
+  .callout p { margin: 0; max-width: none; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0 0 24px; }
+  .pane {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 20px 22px;
+  }
+  .pane h4 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; margin: 0 0 12px; font-weight: 500;
+  }
+  .pane.can h4 { color: var(--accent-ink); }
+  .pane.cant h4 { color: var(--deny); }
+  .pane ul { margin: 0; }
+  .pane li { font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
+  .pane li b { color: var(--ink); font-weight: 600; }
+
+  .steps { margin: 0 0 24px; }
+  .step {
+    display: grid; grid-template-columns: 116px 1fr; gap: 0 20px;
+    padding: 16px 0; border-top: 1px solid var(--rule);
+  }
+  .step:first-child { border-top: 0; padding-top: 0; }
+  .step-tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--accent); padding-top: 4px; }
+  .step h3 { font-size: 15.5px; margin: 0 0 5px; }
+  .step p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+
+  footer {
+    margin-top: 56px; padding-top: 34px; border-top: 2px solid var(--ink);
+    font-family: var(--mono); font-size: 12px; color: var(--ink-3); line-height: 1.9;
+  }
+  @media (max-width: 720px) {
+    .split { grid-template-columns: 1fr; }
+    .step { grid-template-columns: 1fr; gap: 4px; }
+    .part { flex-direction: column; gap: 2px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">커널 계측 · 필드 목록</p>
+  <h1>커널이 무엇을 읽어야 하는가</h1>
+  <p class="thesis">훅마다 <b>어떤 필드를 어디서 꺼내는지</b>를 먼저 확정한다. 이 목록이 곧 <code>bpf/warrant.bpf.c</code>의 구조체 정의이자, 감사 레코드의 스키마이자, <code>proto/warrant.proto</code>의 이벤트 메시지다.</p>
+  <div class="mast-meta">
+    <span>작성 <b>2026-08-24</b></span>
+    <span>대상 <b>§03 훅 순서 1~8</b></span>
+    <span>전제 <b>CO-RE · vmlinux.h</b></span>
+    <span>기준 <b>커널 6.8</b></span>
+  </div>
+</header>
+
+<section class="summary">
+  <h2>한눈에</h2>
+  <ul>
+    <li><b>공통 프리앰블 다섯 개</b>가 전부다 — 노드 활동의 99.9%는 첫 두 개에서 빠져나간다. 훅별 필드는 그 뒤에 붙는 꼬리다.</li>
+    <li><b>신뢰의 근거는 <code>(dev, ino)</code> 쌍 하나뿐이다.</b> 경로 문자열도, argv도, comm도 호출자가 통제한다.</li>
+    <li><b>시각은 반드시 <code>bpf_ktime_get_boot_ns()</code></b>. <code>bpf_ktime_get_ns()</code>를 쓰면 절전한 만큼 영장이 저절로 늘어난다.</li>
+    <li><b>seq와 drop 카운터가 없으면 유실 구간을 증명할 수 없다.</b> §14가 요구한 "빈 구간을 숨기지 않는다"는 이 두 필드에서 나온다.</li>
+    <li><b>못 읽는 것도 목록에 적는다.</b> "알고 있으나 못 읽는다"와 "모른다"는 심사에서 완전히 다르게 취급된다.</li>
+  </ul>
+</section>
+
+
+<div class="part"><span class="pn">Part I</span><span class="pt">뽑아내는 값</span></div>
+
+<section class="first">
+  <div class="sec-head"><span class="num">01</span><h2 class="h">여덟 갈래, 마흔 개</h2></div>
+  <p class="lede">훅이 아니라 <strong>값</strong>을 기준으로 편 목록이다. 훅 하나가 여러 갈래를 걸치고, 갈래 하나가 여러 훅에 쓰인다. <code>struct</code> 정의는 훅이 아니라 이 표에서 나온다.</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>갈래</th><th>뽑는 값</th><th>어디서</th><th>쓰는 훅</th></tr></thead>
+      <tbody>
+        <tr><td class="name">① 태그<br><span class="tk">누구의 세션인가</span></td><td class="mono">활성 여부</td><td class="dim"><code>active_flag[0]</code> PERCPU_ARRAY</td><td class="dim">전 훅 — 여기서 99.9%가 빠져나간다</td></tr>
+        <tr><td></td><td class="mono">cgroup id</td><td class="dim"><code>bpf_get_current_cgroup_id()</code></td><td class="dim">전 훅 · 1차 바인딩</td></tr>
+        <tr><td></td><td class="mono">task 태그</td><td class="dim"><code>task_warrant[task]</code> TASK_STORAGE</td><td class="dim">전 훅 · 2차 바인딩</td></tr>
+        <tr><td></td><td class="mono">expires_ns · grace_ns<br>revoked · mode · on_expiry<br>subject_id · policy_id</td><td class="dim"><code>warrants[id]</code> → <code>struct warrant</code></td><td class="dim">전 훅 · 판정의 전제</td></tr>
+        <tr><td></td><td class="mono">현재 시각</td><td class="dim"><code>bpf_ktime_get_boot_ns()</code></td><td class="dim">전 훅 · 만료·유예 비교</td></tr>
+
+        <tr><td class="name">② 주체<br><span class="tk">누가</span></td><td class="mono">pid · tgid</td><td class="dim"><code>bpf_get_current_pid_tgid()</code></td><td class="dim">전 훅 · 레코드 공통</td></tr>
+        <tr><td></td><td class="mono">start_time</td><td class="dim"><code>task-&gt;start_time</code></td><td class="dim">전 훅 · <b>pid 재사용 구분</b></td></tr>
+        <tr><td></td><td class="mono">ppid</td><td class="dim"><code>task-&gt;real_parent-&gt;tgid</code></td><td class="dim">전 훅 · 트리 복원</td></tr>
+        <tr><td></td><td class="mono">uid · euid · gid</td><td class="dim"><code>bpf_get_current_uid_gid()</code><br><code>task-&gt;cred-&gt;euid</code></td><td class="dim">전 훅 · <b>정황이지 신원 아님</b></td></tr>
+        <tr><td></td><td class="mono">comm</td><td class="dim"><code>bpf_get_current_comm()</code></td><td class="dim">전 훅 · 가독성용, 위조됨</td></tr>
+        <tr><td></td><td class="mono">pid ns · mnt ns inum</td><td class="dim"><code>task-&gt;nsproxy-&gt;…-&gt;ns.inum</code></td><td class="dim">전 훅 · 컨테이너 커버리지</td></tr>
+
+        <tr><td class="name">③ 대상<br><span class="tk">무엇을</span></td><td class="mono">inode</td><td class="dim"><code>f_inode-&gt;i_ino</code></td><td class="dim">exec · file_open · inode_*</td></tr>
+        <tr><td></td><td class="mono">device</td><td class="dim"><code>f_inode-&gt;i_sb-&gt;s_dev</code></td><td class="dim">동일 — <b>언제나 inode와 쌍</b></td></tr>
+        <tr><td></td><td class="mono">부모 디렉터리 inode</td><td class="dim"><code>dentry-&gt;d_parent-&gt;d_inode</code></td><td class="dim">file_open · inode_*</td></tr>
+        <tr><td></td><td class="mono">조상 inode 체인</td><td class="dim"><code>d_parent</code> N회 순회</td><td class="dim">file_open — <b>비용의 전부</b></td></tr>
+        <tr><td></td><td class="mono">i_mode</td><td class="dim"><code>f_inode-&gt;i_mode</code></td><td class="dim">exec(setuid) · file_open(파일 종류)</td></tr>
+        <tr><td></td><td class="mono">dentry 이름</td><td class="dim"><code>dentry-&gt;d_name.name</code></td><td class="dim">inode_* · 레코드용</td></tr>
+        <tr><td></td><td class="mono">전체 경로</td><td class="dim"><code>bpf_d_path()</code></td><td class="dim">file_open — <b>차단 건에만</b></td></tr>
+
+        <tr><td class="name">④ 의도<br><span class="tk">어떻게</span></td><td class="mono">쓰기 여부</td><td class="dim"><code>f_mode &amp; FMODE_WRITE</code></td><td class="dim">file_open — <b>맨 앞 게이트</b></td></tr>
+        <tr><td></td><td class="mono">열기 플래그</td><td class="dim"><code>f_flags</code> (O_TRUNC·APPEND·CREAT)</td><td class="dim">file_open</td></tr>
+        <tr><td></td><td class="mono">조작 종류</td><td class="dim">훅 자체가 곧 의도</td><td class="dim">inode_{create,unlink,rename,link,symlink}</td></tr>
+        <tr><td></td><td class="mono">rename 양쪽 디렉터리</td><td class="dim"><code>old_dir</code> · <code>new_dir</code></td><td class="dim">inode_rename — <b>한쪽만 보면 뚫린다</b></td></tr>
+
+        <tr><td class="name">⑤ 목적지<br><span class="tk">어디로</span></td><td class="mono">주소 패밀리</td><td class="dim"><code>address-&gt;sa_family</code></td><td class="dim">socket_connect · sendmsg</td></tr>
+        <tr><td></td><td class="mono">IPv4 주소 · 포트</td><td class="dim"><code>sin_addr</code> · <code>sin_port</code></td><td class="dim">socket_connect</td></tr>
+        <tr><td></td><td class="mono">IPv6 주소</td><td class="dim"><code>sin6_addr</code> (16B)</td><td class="dim">socket_connect — 빼먹으면 우회 경로</td></tr>
+        <tr><td></td><td class="mono">유닉스 소켓 경로</td><td class="dim"><code>sun_path</code> (+abstract 처리)</td><td class="dim">socket_connect — <b>위임 차단</b></td></tr>
+        <tr><td></td><td class="mono">소켓 타입</td><td class="dim"><code>sk-&gt;sk_type</code></td><td class="dim">socket_connect</td></tr>
+        <tr><td></td><td class="mono">connect 없는 목적지</td><td class="dim"><code>msg-&gt;msg_name</code> · <code>msg_namelen</code></td><td class="dim">socket_sendmsg — 플래그 있을 때만</td></tr>
+        <tr><td></td><td class="mono">전송 크기</td><td class="dim"><code>size</code></td><td class="dim">socket_sendmsg · 반출량 집계</td></tr>
+
+        <tr><td class="name">⑥ 실행 맥락<br><span class="tk">exec 전용</span></td><td class="mono">filename</td><td class="dim"><code>bprm-&gt;filename</code></td><td class="dim">bprm_check_security · 참고</td></tr>
+        <tr><td></td><td class="mono">interp</td><td class="dim"><code>bprm-&gt;interp</code></td><td class="dim">동일 — <b>인터프리터 탐지</b></td></tr>
+        <tr><td></td><td class="mono">argv</td><td class="dim"><code>tp/sys_enter_execve</code> 쪽이 현실적</td><td class="dim">동일 — 2급 증거, 잘림</td></tr>
+        <tr><td></td><td class="mono">자격 변화</td><td class="dim"><code>bprm-&gt;cred-&gt;uid/euid</code></td><td class="dim">동일 — 권한 상승 순간</td></tr>
+        <tr><td></td><td class="mono">부모·자식 task</td><td class="dim">tracepoint 인자</td><td class="dim">sched_process_fork — 태그 복사</td></tr>
+
+        <tr><td class="name">⑦ 자기보호<br><span class="tk">경계를 지키는 값</span></td><td class="mono">bpf 명령</td><td class="dim"><code>cmd</code></td><td class="dim">lsm/bpf — 영장 세션이면 전면 금지</td></tr>
+        <tr><td></td><td class="mono">신호 대상·번호</td><td class="dim"><code>p-&gt;tgid</code> · <code>p</code>의 태그 · <code>sig</code></td><td class="dim">lsm/task_kill</td></tr>
+        <tr><td></td><td class="mono">파일시스템 매직</td><td class="dim"><code>mnt-&gt;mnt_sb-&gt;s_magic</code></td><td class="dim">lsm/sb_umount — <code>BPF_FS_MAGIC</code></td></tr>
+        <tr><td></td><td class="mono">ptrace 대상 태그</td><td class="dim">child task의 태그 유무</td><td class="dim">lsm/ptrace_access_check</td></tr>
+        <tr><td></td><td class="mono">모듈 이름</td><td class="dim"><code>kmod_name</code></td><td class="dim">lsm/kernel_module_request</td></tr>
+        <tr><td></td><td class="mono">warrantd 자기 파일</td><td class="dim">바이너리·유닛의 (dev, ino)</td><td class="dim">file_open · inode_unlink</td></tr>
+
+        <tr><td class="name">⑧ 레코드 메타<br><span class="tk">유실을 증명하는 값</span></td><td class="mono">seq</td><td class="dim">per-CPU 단조 증가 카운터</td><td class="dim">전 훅 — <b>없으면 유실을 못 센다</b></td></tr>
+        <tr><td></td><td class="mono">dropped</td><td class="dim"><code>bpf_ringbuf_reserve()</code> NULL 횟수</td><td class="dim">전 훅 — <code>EventGap.droppedCount</code>가 된다</td></tr>
+        <tr><td></td><td class="mono">hook_id · verdict</td><td class="dim">상수 · 판정 결과</td><td class="dim">전 훅 — ALLOW·DENY·WOULD_DENY</td></tr>
+        <tr><td></td><td class="mono">timestamp</td><td class="dim"><code>bpf_ktime_get_boot_ns()</code></td><td class="dim">전 훅 — 벽시계 변환은 warrantd가</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <span class="ct">읽는 방향</span>
+    <p>①과 ②는 <b>모든 훅이 무조건 뽑는다</b> — 판정 결과와 무관하게 레코드에 실린다. ③~⑥은 훅마다 갈리는 꼬리이고, ⑦은 정책이 아니라 제품이 강제 삽입하는 규칙의 입력이며, ⑧은 감사 체계가 자기 구멍을 인정하기 위한 값이다. <b>①의 첫 줄에서 빠져나가는 경로가 노드 활동의 대부분</b>이라, 여기에 조회를 하나 더 얹으면 평시 오버헤드가 통째로 올라간다.</p>
+  </div>
+</section>
+
+<div class="part"><span class="pn">Part II</span><span class="pt">공통 프리앰블</span></div>
+
+<section>
+  <div class="sec-head"><span class="num">02</span><h2 class="h">판정 프리앰블 — 다섯 번의 조회</h2></div>
+  <p class="lede">§13의 판정 경로를 필드 단위로 편 것이다. <strong>①에서 빠져나가는 경로가 노드 활동의 대부분</strong>이므로, 여기에 조회를 하나라도 더 넣으면 평시 오버헤드가 통째로 올라간다.</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>순서</th><th>읽는 것</th><th>수단</th><th>없으면</th></tr></thead>
+      <tbody>
+        <tr><td class="name">①</td><td>노드에 활성 영장이 있는가</td><td class="mono">active_flag[0]<br>PERCPU_ARRAY</td><td class="dim">즉시 통과. 수 나노초짜리 배열 조회 하나로 끝난다</td></tr>
+        <tr><td class="name">②</td><td>세션 cgroup id</td><td class="mono">bpf_get_current_cgroup_id()</td><td class="dim">③으로. uid 변경과 무관하므로 sudo·su를 그냥 통과한다</td></tr>
+        <tr><td class="name">③</td><td>task 태그 (2차 방어선)</td><td class="mono">bpf_task_storage_get(<br>&nbsp;&nbsp;&amp;task_warrant, task, …)</td><td class="dim">관리 대상 아님 → 통과</td></tr>
+        <tr><td class="name">④</td><td>영장 본체</td><td class="mono">warrants[warrant_id]<br>→ struct warrant</td><td class="dim">태그는 있는데 영장이 없는 상태 — 정리 누락이므로 기록 대상</td></tr>
+        <tr><td class="name">⑤</td><td>현재 시각</td><td class="mono">bpf_ktime_get_boot_ns()</td><td class="dim">expires_ns·grace_ns와 비교. 만료면 강등 규칙으로 판정</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <span class="ct">cgroup id 하나로는 부족하다</span>
+    <p><code>bpf_get_current_cgroup_id()</code>는 <b>현재 cgroup의 leaf id</b>를 준다. 프로세스가 <code>session-N.scope</code> 아래 하위 cgroup으로 내려가면 그 값이 맵에 없다. <code>bpf_get_current_ancestor_cgroup_id(level)</code>은 level이 <b>고정 상수여야</b> 하는데 systemd 계층 깊이는 환경마다 다르다. 그래서 조상 순회에 기대지 않고 <b>②가 miss하면 ③으로 떨어지는</b> 2단 구조로 간다 — task_storage는 fork로 전파되므로 cgroup이 어디로 가든 따라붙는다.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="ct">boot_ns와 ns를 혼동하면 만료가 늘어난다</span>
+    <p><code>bpf_ktime_get_ns()</code>는 suspend 구간을 <b>제외</b>한다. 노트북이든 절전이 걸리는 VM이든, 이걸로 만료를 재면 잠든 시간만큼 영장이 공짜로 연장된다. 만료·유예 판정은 예외 없이 <code>bpf_ktime_get_boot_ns()</code>다. 감사 레코드의 타임스탬프도 같은 기준으로 찍고, 벽시계 보정은 warrantd가 유저 공간에서 한다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">03</span><h2 class="h">이벤트 공통 메타 — 누가, 어디서</h2></div>
+  <p class="lede">판정 결과와 무관하게 모든 감사 레코드에 실리는 필드다. "모든 행위가 사람 이름표를 달고 기록된다"(§01)는 주장이 실제로 성립하는 지점이 여기다.</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>필드</th><th>출처</th><th>왜 필요한가</th><th>주의</th></tr></thead>
+      <tbody>
+        <tr><td class="name">pid · tgid</td><td class="mono">bpf_get_current_pid_tgid()</td><td class="dim">프로세스 식별</td><td class="dim">단독으로는 식별자가 못 된다 — 아래 참조</td></tr>
+        <tr><td class="name">start_time</td><td class="mono">task-&gt;start_time</td><td class="dim"><b>pid 재사용 구분</b>. (pid, start_time) 쌍이라야 유일하다</td><td class="dim">boot 기준 ns</td></tr>
+        <tr><td class="name">ppid</td><td class="mono">task-&gt;real_parent-&gt;tgid</td><td class="dim">프로세스 트리 복원. 위임 경로 추적의 근거</td><td class="dim">parent가 아니라 real_parent — ptrace 중이면 갈린다</td></tr>
+        <tr><td class="name">uid · euid · gid</td><td class="mono">bpf_get_current_uid_gid()<br>task-&gt;cred-&gt;euid</td><td class="dim">sudo 전후 비교. <b>신원이 아니라 정황</b>이다</td><td class="dim">uid 0을 신원으로 읽지 말 것. 신원은 subject_id에 있다</td></tr>
+        <tr><td class="name">comm</td><td class="mono">bpf_get_current_comm()</td><td class="dim">리포트 가독성</td><td class="dim">16바이트로 잘리고 prctl로 위조된다. 증거 아님</td></tr>
+        <tr><td class="name">cgroup_id</td><td class="mono">bpf_get_current_cgroup_id()</td><td class="dim">세션 귀속. 컨테이너 상관에도 쓰인다</td><td class="dim">—</td></tr>
+        <tr><td class="name">pid ns inum</td><td class="mono">task-&gt;nsproxy-&gt;<br>pid_ns_for_children-&gt;ns.inum</td><td class="dim"><b>컨테이너 커버리지</b>. auditd가 못 하던 부분(§07)</td><td class="dim">nsproxy는 exit 중 NULL이 될 수 있다 — 반드시 확인</td></tr>
+        <tr><td class="name">mnt ns inum</td><td class="mono">task-&gt;nsproxy-&gt;mnt_ns-&gt;ns.inum</td><td class="dim">같은 경로가 다른 파일인 경우를 가른다</td><td class="dim">동일</td></tr>
+        <tr><td class="name">warrant_id · subject_id<br>policy_id</td><td class="mono">struct warrant</td><td class="dim">사람 이름표. 조회 시점에 사람으로 조인된다</td><td class="dim">subject_id는 u32 — 재사용 금지</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <span class="ct">pid는 식별자가 아니다</span>
+    <p>세션이 30분 도는 동안 pid는 얼마든지 재사용된다. 감사 로그에서 "pid 4821이 무엇을 했나"를 추적하려면 <b><code>(pid, start_time)</code> 쌍</b>이 필요하고, 그래서 <code>start_time</code>은 선택 필드가 아니라 필수다. 서버 쪽 <code>AuditEvent</code>에도 같은 쌍이 들어가야 한다.</p>
+  </div>
+</section>
+
+<div class="part"><span class="pn">Part III</span><span class="pt">훅별 필드</span></div>
+
+<section class="first">
+  <div class="sec-head"><span class="num">04</span><h2 class="h">tp/sched_process_fork — 태그 전파</h2></div>
+  <p class="lede">읽는 것이 가장 적고, 빠지면 나머지 전부가 무의미해지는 훅이다. §03 훅 순서에서 이걸 1번에 둔 이유다.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>필드</th><th>출처</th><th>용도</th></tr></thead>
+      <tbody>
+        <tr><td class="name">parent task</td><td class="mono">ctx-&gt;parent_pid → task</td><td class="dim">부모의 task_warrant 조회</td></tr>
+        <tr><td class="name">child task</td><td class="mono">ctx-&gt;child_pid → task</td><td class="dim">복사 대상</td></tr>
+        <tr><td class="name">부모 태그</td><td class="mono">task_warrant[parent]</td><td class="dim">없으면 아무것도 하지 않는다 — 여기가 뜨거운 경로다</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>자식 쪽 저장에는 <code>BPF_LOCAL_STORAGE_GET_F_CREATE</code>가 필요하다. tracepoint 컨텍스트에서 child의 <code>task_struct</code>를 잡는 방법이 커널 버전에 따라 갈리므로, <code>tp_btf/sched_process_fork</code>를 쓰면 인자로 <code>struct task_struct *</code>가 그대로 들어와 훨씬 단순해진다 — <b>PoC는 여기서 시작한다</b>.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">05</span><h2 class="h">lsm/bprm_check_security — exec</h2></div>
+  <p class="lede">1급 증거가 만들어지는 훅이다. "실행된 모든 프로세스를 사람에게 귀속시켜 기록합니다"라는 문구가 참이 되는 지점.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>필드</th><th>출처</th><th>용도</th><th>주의</th></tr></thead>
+      <tbody>
+        <tr><td class="name">inode</td><td class="mono">bprm-&gt;file-&gt;f_inode-&gt;i_ino</td><td class="dim"><b>실행 화이트리스트 판정 키</b></td><td class="dim">—</td></tr>
+        <tr><td class="name">device</td><td class="mono">bprm-&gt;file-&gt;f_inode-&gt;<br>i_sb-&gt;s_dev</td><td class="dim">inode와 <b>반드시 쌍</b>으로. bind mount 우회를 막는다</td><td class="dim">컨테이너 overlayfs에서는 호스트와 다른 값이 나온다</td></tr>
+        <tr><td class="name">i_mode</td><td class="mono">f_inode-&gt;i_mode</td><td class="dim">setuid 비트(<code>S_ISUID</code>) 탐지</td><td class="dim">허용 목록에 setuid 바이너리가 있으면 lint 경고 대상</td></tr>
+        <tr><td class="name">filename</td><td class="mono">bprm-&gt;filename</td><td class="dim">리포트 가독성</td><td class="dim">참고 정보. 판정에 쓰지 않는다</td></tr>
+        <tr><td class="name">interp</td><td class="mono">bprm-&gt;interp</td><td class="dim"><b>인터프리터 실행 탐지</b> — 아래 참조</td><td class="dim">filename과 다르면 스크립트다</td></tr>
+        <tr><td class="name">argv</td><td class="mono">bprm-&gt;p · bprm-&gt;argc</td><td class="dim">참고 정보</td><td class="dim">읽기 자체가 까다롭다 — 아래 참조</td></tr>
+        <tr><td class="name">자격 변화</td><td class="mono">bprm-&gt;cred-&gt;uid/euid</td><td class="dim">권한 상승 순간 포착</td><td class="dim">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <span class="ct">화이트리스트의 구멍 — 인터프리터</span>
+    <p><code>/usr/bin/python3</code>을 허용하면 <b>python으로 할 수 있는 모든 것이 허용된다</b>. exec 화이트리스트는 "이 바이너리를 실행해도 되는가"만 보고 그 바이너리가 무엇을 하는지는 보지 않는다. 셸도 마찬가지다. 그래서 <code>bprm-&gt;interp != bprm-&gt;filename</code>인 경우를 별도로 기록하고, 정책 lint가 실행 허용 목록에 셸·인터프리터가 있으면 <b>"이 화이트리스트는 사실상 무의미하다"</b>고 경고해야 한다.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="ct">argv는 이 훅에서 읽기도 어렵다</span>
+    <p>증거 능력이 없다는 것(§14)과 별개로, <b>기술적으로도 까다롭다</b>. <code>bprm_check_security</code> 시점의 argv 문자열은 아직 설치되지 않은 새 <code>mm</code>의 스택에 있어서 <code>bpf_probe_read_user()</code>가 현재 주소 공간을 보고 있는 동안에는 잡히지 않는다. 실무적으로는 <code>tp/syscalls/sys_enter_execve</code>에서 유저 포인터를 읽는 편이 단순하다. 어느 쪽이든 BPF 스택 제약으로 <b>길이가 잘리고</b>, <code>exec -a</code> 한 줄로 위조된다. <b>참고 정보 이상으로 승격시키지 말 것.</b></p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">06</span><h2 class="h">lsm/file_open — 쓰기 판정</h2></div>
+  <p class="lede">§09가 "선행 검증이 필요한 세 가지" 중 <strong>가장 위험하다</strong>고 꼽은 훅이다. 읽어야 하는 필드가 많아서가 아니라, <b>"이 디렉터리 이하인가"를 판정하는 비용</b> 때문이다.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>필드</th><th>출처</th><th>용도</th><th>주의</th></tr></thead>
+      <tbody>
+        <tr><td class="name">f_mode</td><td class="mono">file-&gt;f_mode &amp; FMODE_WRITE</td><td class="dim"><b>첫 번째 게이트</b>. 읽기면 즉시 통과</td><td class="dim">읽기는 통제하지 않는다(§15). 이 검사를 맨 앞에 둔다</td></tr>
+        <tr><td class="name">f_flags</td><td class="mono">file-&gt;f_flags</td><td class="dim">O_TRUNC·O_APPEND·O_CREAT 구분</td><td class="dim">—</td></tr>
+        <tr><td class="name">inode · device</td><td class="mono">file-&gt;f_inode-&gt;i_ino<br>f_inode-&gt;i_sb-&gt;s_dev</td><td class="dim">판정 키</td><td class="dim">언제나 쌍으로</td></tr>
+        <tr><td class="name">부모 디렉터리 inode</td><td class="mono">file-&gt;f_path.dentry-&gt;<br>d_parent-&gt;d_inode</td><td class="dim">허용 디렉터리 판정</td><td class="dim">한 단계로는 "이하 전체"를 못 본다</td></tr>
+        <tr><td class="name">조상 체인</td><td class="mono">d_parent를 N회 순회</td><td class="dim">"/app 이하" 판정</td><td class="dim"><b>여기가 비용의 전부다</b> — 아래 참조</td></tr>
+        <tr><td class="name">경로 문자열</td><td class="mono">bpf_d_path(&amp;file-&gt;f_path, …)</td><td class="dim">감사 레코드용</td><td class="dim">차단된 건에만 호출한다. 허용 경로에서 부르면 비싸다</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout warn">
+    <span class="ct">"이하 전체"를 어떻게 판정할 것인가 — 두 가지 길</span>
+    <p><b>① dentry 조상 순회.</b> <code>d_parent</code>를 정해진 깊이(예: 16)만큼 타고 올라가며 각 단계의 inode가 허용 목록에 있는지 본다. verifier가 bounded loop을 요구하므로 깊이를 상수로 박아야 하고, 그보다 깊은 경로는 판정이 불완전해진다. <b>비용이 깊이에 비례한다.</b></p>
+    <p style="margin-top:12px"><b>② 하위 디렉터리를 전부 미리 등록.</b> warrantd가 <code>/app</code> 이하 모든 디렉터리의 inode를 맵에 넣어 두고, 훅은 부모 inode 조회 <b>한 번</b>으로 끝낸다. 판정은 O(1)이지만 새 디렉터리 생성을 <code>inode_mkdir</code>에서 잡아 맵을 갱신해야 하고, 디렉터리가 많으면 맵이 커진다.</p>
+    <p style="margin-top:12px"><b>PoC에서 실측할 것이 정확히 이 둘의 비용 차이다.</b> §09가 지목한 "file_open 훅의 실측 오버헤드"는 훅을 붙였는지가 아니라 어느 쪽을 골랐는지의 문제다.</p>
+  </div>
+
+  <div class="callout">
+    <span class="ct">bpf_d_path는 아무 데서나 못 부른다</span>
+    <p>커널이 BTF allowlist로 호출 지점을 제한한다. <code>security_file_open</code>은 대체로 목록에 있지만 <b>커널 버전마다 다르므로</b> 검증 대상 배포판 3종에서 각각 확인해야 한다. 막히면 <code>dentry-&gt;d_name</code>을 순회하며 직접 조립하는 수밖에 없고, 그건 더 비싸다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">07</span><h2 class="h">lsm/inode_* 다섯 개 — 디렉터리 단위 금지</h2></div>
+  <p class="lede">§15의 "금지는 디렉터리 inode로 걸어야 한다"가 구현되는 곳이다. <strong>다섯 개를 한 세트로 붙여야 완전해진다</strong> — 하나라도 빠지면 그 경로로 우회된다.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>훅</th><th>읽는 것</th><th>막는 우회</th></tr></thead>
+      <tbody>
+        <tr><td class="name">inode_create</td><td class="mono">dir-&gt;i_ino · dentry-&gt;d_name</td><td class="dim">금지 디렉터리에 새 파일을 만드는 것</td></tr>
+        <tr><td class="name">inode_unlink</td><td class="mono">dir-&gt;i_ino · dentry</td><td class="dim"><b>지우고 다시 만들기</b> — 파일 inode 금지를 뚫는 고전적 경로</td></tr>
+        <tr><td class="name">inode_rename</td><td class="mono">old_dir · new_dir<br>양쪽 i_ino</td><td class="dim">밖에서 만들어 안으로 옮기기. <b>양쪽을 다 봐야 한다</b></td></tr>
+        <tr><td class="name">inode_link</td><td class="mono">old_dentry · dir · new_dentry</td><td class="dim">하드링크로 금지 파일을 허용 디렉터리에 노출</td></tr>
+        <tr><td class="name">inode_symlink</td><td class="mono">dir · dentry · old_name</td><td class="dim">심볼릭 링크로 우회 경로 만들기</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><code>inode_rename</code>이 특히 중요하다. 나머지 넷을 다 막아도 여기서 <code>new_dir</code>만 보고 <code>old_dir</code>을 안 보면, 허용 디렉터리에서 만든 파일을 금지 디렉터리로 옮기는 경로가 열린다. <b>rename은 언제나 양방향 판정</b>이다.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">08</span><h2 class="h">lsm/socket_connect — 아웃바운드와 위임 소켓</h2></div>
+  <p class="lede">이 훅은 두 가지 일을 겸한다. 데이터 반출 차단(§06)과, §04의 <strong>위임 경로 3중 방어 중 두 번째 겹</strong>이다.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>필드</th><th>출처</th><th>용도</th><th>주의</th></tr></thead>
+      <tbody>
+        <tr><td class="name">sa_family</td><td class="mono">address-&gt;sa_family</td><td class="dim">첫 분기</td><td class="dim">AF_UNIX가 여기로 온다는 것이 핵심이다</td></tr>
+        <tr><td class="name">IPv4 주소 · 포트</td><td class="mono">sockaddr_in-&gt;sin_addr<br>-&gt;sin_port</td><td class="dim">rule_net LPM 트라이 조회</td><td class="dim">포트는 네트워크 바이트 오더</td></tr>
+        <tr><td class="name">IPv6 주소</td><td class="mono">sockaddr_in6-&gt;sin6_addr</td><td class="dim">동일</td><td class="dim">16바이트. IPv6를 빼먹으면 그대로 우회 경로다</td></tr>
+        <tr><td class="name">sun_path</td><td class="mono">sockaddr_un-&gt;sun_path</td><td class="dim"><b>위임 소켓 차단</b> — 아래 목록</td><td class="dim">abstract 소켓은 <code>sun_path[0] == 0</code></td></tr>
+        <tr><td class="name">소켓 타입</td><td class="mono">sock-&gt;sk-&gt;sk_type</td><td class="dim">STREAM/DGRAM 구분</td><td class="dim">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><code>security_socket_connect</code> 시점의 주소는 이미 커널 메모리로 복사된 뒤라 <code>bpf_probe_read_user()</code>가 필요 없다. 차단할 <code>sun_path</code>는 최소 셋이다.</p>
+  <pre><b>/run/systemd/private</b>       <i>systemd-run · systemctl의 실체</i>
+<b>/run/dbus/system_bus_socket</b> <i>D-Bus 프로토콜을 직접 짜는 경우까지 걸린다</i>
+<b>/var/run/docker.sock</b>        <i>docker exec · 컨테이너 생성</i></pre>
+  <div class="callout">
+    <span class="ct">abstract 소켓을 놓치지 말 것</span>
+    <p><code>sun_path[0]</code>이 <code>\0</code>이면 파일시스템에 없는 abstract 네임스페이스이고, 실제 이름은 그 다음 바이트부터 <code>addrlen</code>까지다. 문자열로 읽고 끝내면 abstract 소켓이 전부 빈 이름으로 보여서 <b>필터를 통째로 빠져나간다</b>.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">09</span><h2 class="h">lsm/socket_sendmsg — connect 없는 경로</h2></div>
+  <p class="lede">§18이 인정한 구멍 중 하나. <code>sendto</code>는 <code>socket_connect</code>를 거치지 않으므로 DNS 터널링 경로가 열려 있다.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>필드</th><th>출처</th><th>용도</th></tr></thead>
+      <tbody>
+        <tr><td class="name">목적지 주소</td><td class="mono">msg-&gt;msg_name</td><td class="dim">connect 없이 지정된 목적지. NULL이면 이미 연결된 소켓이다</td></tr>
+        <tr><td class="name">주소 길이</td><td class="mono">msg-&gt;msg_namelen</td><td class="dim">—</td></tr>
+        <tr><td class="name">전송 크기</td><td class="mono">size</td><td class="dim">반출량 집계</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>비용이 오르므로 <b>영장에 플래그가 있을 때만 attach</b>한다(§18). 이 훅은 UDP 패킷마다 불리므로 평시에 붙여 두면 §13의 "평시 오버헤드를 0에 가깝게"라는 전제가 깨진다.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">10</span><h2 class="h">자기 보호 여섯 개 — root가 훅을 떼지 못하게</h2></div>
+  <p class="lede">"root보다 강한 경계"라는 주장은 root가 그 경계를 만드는 장치를 끌 수 없어야만 성립한다(§16). <strong>여섯 개가 다 필요하고, 하나라도 열려 있으면 나머지가 무의미해진다.</strong></p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>훅</th><th>읽는 것</th><th>판정</th></tr></thead>
+      <tbody>
+        <tr><td class="name">lsm/bpf</td><td class="mono">cmd (BPF_PROG_DETACH ·<br>BPF_MAP_UPDATE_ELEM · BPF_OBJ_GET …)</td><td class="dim">영장 세션이면 <b>cmd를 볼 것도 없이 전면 금지</b>. 예외를 만들면 그 예외가 우회 경로다</td></tr>
+        <tr><td class="name">lsm/task_kill</td><td class="mono">p-&gt;tgid · p의 태그 유무<br>sig</td><td class="dim">대상이 warrantd·sshd면 거부. 태그 없는 프로세스로의 신호를 막는 형태가 더 단순하다</td></tr>
+        <tr><td class="name">lsm/sb_umount</td><td class="mono">mnt-&gt;mnt_sb-&gt;s_magic</td><td class="dim"><code>BPF_FS_MAGIC</code>이면 거부. pin이 풀리면 훅이 사라진다</td></tr>
+        <tr><td class="name">lsm/ptrace_access_check</td><td class="mono">child task의 태그 유무<br>mode</td><td class="dim">태그된 프로세스가 <b>태그 없는</b> 프로세스를 붙잡지 못하게</td></tr>
+        <tr><td class="name">lsm/kernel_module_request</td><td class="mono">kmod_name</td><td class="dim">기본 금지. 필요하면 별도 영장으로 명시 허용</td></tr>
+        <tr><td class="name">lsm/file_open<br>lsm/inode_unlink</td><td class="mono">warrantd 바이너리·유닛 파일의<br>(dev, ino)</td><td class="dim">제품이 자동 등록하는 금지 목록. 정책 작성자가 지울 수 없다</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn">
+    <span class="ct">이 목록은 정책이 아니다</span>
+    <p>영장 작성자가 실수로든 고의로든 열 수 없어야 하므로, <b>제품이 강제로 삽입하는 기본 규칙</b>으로 둔다. 서버의 <code>PolicyLinter.assertDoesNotWeakenSelfProtection()</code>이 이걸 건드리는 정책을 경고가 아니라 <b>발급 거부</b>로 처리하는 이유다. 유일한 예외인 break-glass 영장은 사용 즉시 최고 등급 경보를 낸다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">11</span><h2 class="h">ringbuf 레코드 — 유실을 증명하는 두 필드</h2></div>
+  <p class="lede">§02와 §11~§18의 필드를 담는 그릇이다. 여기에 <strong>seq와 drop</strong>이 없으면 §14가 요구한 "유실 구간을 명시적으로 기록해 빈 구간을 숨기지 않는다"를 지킬 방법이 없다.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>필드</th><th>왜</th></tr></thead>
+      <tbody>
+        <tr><td class="name">seq</td><td class="dim"><b>per-CPU 단조 증가 카운터.</b> warrantd가 번호가 건너뛴 것을 보고 유실을 감지한다. 서버의 <code>(node_id, node_seq)</code> 유니크 제약이 이 값을 받아 재전송을 멱등하게 만든다</td></tr>
+        <tr><td class="name">dropped</td><td class="dim"><code>bpf_ringbuf_reserve()</code>가 NULL을 돌려준 횟수. <b>버린 이벤트를 셀 수 있는 유일한 방법</b>이고, 이 값이 서버의 <code>EventGap.droppedCount</code>가 된다</td></tr>
+        <tr><td class="name">hook_id</td><td class="dim">어느 훅이 낸 레코드인지. <code>bpftool prog profile</code>과 대조해 비싼 훅을 짚는다</td></tr>
+        <tr><td class="name">verdict</td><td class="dim">ALLOW · DENY · WOULD_DENY. 감사 모드와 강제 모드가 같은 판정 함수를 쓰므로 세 값이 한 스키마에 들어간다</td></tr>
+        <tr><td class="name">timestamp</td><td class="dim">boot_ns. 벽시계 변환은 warrantd가 한다</td></tr>
+        <tr><td class="name">이벤트별 payload</td><td class="dim">exec이면 inode·argv, connect면 목적지, write면 대상 inode와 부모 디렉터리</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <span class="ct">기록의 절제(§13)가 여기서 구현된다</span>
+    <p>차단은 전부 남기고, 허용은 <code>exec</code>과 <code>connect</code>처럼 빈도가 낮은 것만 남긴다. <b>허용된 쓰기까지 전건 기록하면 ringbuf가 넘친다</b> — 대신 per-CPU 카운터로 집계해 주기적으로 한 건씩 올린다. 아이러니하게도, 다 남기려는 설계가 유실을 만들어 결국 덜 남게 된다.</p>
+  </div>
+</section>
+
+<div class="part"><span class="pn">Part IV</span><span class="pt">경계</span></div>
+
+<section class="first">
+  <div class="sec-head"><span class="num">12</span><h2 class="h">BPF 밖에서 읽는 것</h2></div>
+  <p class="lede">전부 커널에서 읽을 필요는 없다. 아래는 <strong>warrantd가 유저 공간에서</strong> 읽어 맵에 넣어 주는 값이다 — 훅에서 하면 비싸거나 아예 불가능하다.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>값</th><th>어떻게</th><th>왜 커널에서 안 하나</th></tr></thead>
+      <tbody>
+        <tr><td class="name">세션 cgroup id</td><td class="mono">XDG_SESSION_ID →<br>session-N.scope 디렉터리 stat</td><td class="dim">cgroup v2에서 cgroup id는 그 디렉터리의 inode 번호다. PAM이 넘긴 세션 id로 warrantd가 직접 찾는다</td></tr>
+        <tr><td class="name">허용 바이너리 inode</td><td class="mono">경로 → stat → (dev, ino)<br>fanotify로 갱신 감시</td><td class="dim">정책은 경로로 쓰고 맵에는 inode가 들어간다. 패키지 업데이트로 바뀌면 자동 재등록(§15)</td></tr>
+        <tr><td class="name">노드 부팅 시각</td><td class="mono">clock_gettime(BOOTTIME)</td><td class="dim">중앙이 준 절대 만료 시각을 <code>expires_ns</code>로 변환하는 기준. <b>중앙은 원격 노드의 부팅 시각을 모른다</b></td></tr>
+        <tr><td class="name">컨테이너 신원</td><td class="mono">cgroup path → 컨테이너 id</td><td class="dim">문자열 파싱은 BPF에서 값비싸다. 커널은 cgroup id만 남기고 해석은 유저 공간에서</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">13</span><h2 class="h">읽을 수 없는 것</h2></div>
+  <p class="lede">커널 훅은 <strong>프로세스가 만들어지는 순간</strong>과 <strong>자원에 손대는 순간</strong>을 본다. 그 사이에서 일어나는 일은 보이지 않는다. 이 목록을 제품 설명에서 흐리면 감사 현장에서 반증당한다(§14).</p>
+  <div class="split">
+    <div class="pane cant">
+      <h4>구조적으로 못 읽는다</h4>
+      <ul>
+        <li><b>셸 빌트인</b> — <code>cd</code>·<code>echo</code>는 exec이 없다</li>
+        <li><b>인터프리터 내부 로직</b> — 실제로 무언가 할 때만 syscall이 난다. 행위는 놓치지 않고 <b>의도만 놓친다</b></li>
+        <li><b>이미 열린 fd로의 write</b> — <code>file_open</code>은 여는 순간만 본다. <code>file_permission</code>은 read/write마다 불려서 너무 비싸다</li>
+        <li><b>터미널 입력</b> — 세션 녹화 제품이 아니다. 비밀번호가 감사 로그에 남는 사고를 원천 차단한다</li>
+        <li><b>위임된 프로세스의 주체</b> — PID 1·atd·containerd-shim이 대신 fork하면 태그가 끊긴다</li>
+      </ul>
+    </div>
+    <div class="pane can">
+      <h4>읽을 수 있으나 안 읽는다</h4>
+      <ul>
+        <li><b>파일 읽기</b> — <code>file_open</code> 오버헤드를 감당할 수 없다. 소수 inode만 별도 감시 목록으로</li>
+        <li><b>허용된 쓰기의 개별 기록</b> — 볼륨이 커서 ringbuf가 넘친다. 집계로 대체</li>
+        <li><b>전체 경로 문자열</b> — 차단된 건에만 <code>bpf_d_path()</code>를 부른다</li>
+        <li><b>argv 전문</b> — 스택 제약으로 잘리고 위조 가능하다. 참고 정보로만</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout">
+    <span class="ct">보조 증거 — bash readline uprobe</span>
+    <p>bash의 readline 반환 지점에 uprobe를 걸면 <b>대화형으로 입력한 명령줄 자체</b>를 잡을 수 있고 빌트인도 걸린다. 다만 bash 한정이고 셸을 바꾸거나 비대화형으로 실행하면 통째로 빠진다. <b>우회 가능한 것을 1급 증거로 두면 감사 체계 전체의 신뢰도가 그 수준으로 떨어진다</b> — 1급 증거는 언제나 exec 기록이다.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="num">14</span><h2 class="h">붙이는 순서와 검증</h2></div>
+  <p class="lede">훅 하나를 붙일 때마다 <strong>verifier 통과와 오버헤드를 같이 확인하는 것</strong>이 유일하게 안전한 진행 방식이다. 이 문서의 절 번호가 그대로 그 순서다.</p>
+  <div class="steps">
+    <div class="step"><div class="step-tag">§04 · 1번</div><div><h3>fork 전파부터</h3><p>읽는 필드가 셋뿐이고, 여기부터 해야 나머지가 의미를 갖는다. <code>tp_btf</code>를 쓰면 child task가 인자로 들어온다.</p></div></div>
+    <div class="step"><div class="step-tag">§05 · 2번</div><div><h3>exec — inode 판정의 첫 사례</h3><p><code>(dev, ino)</code> 쌍으로 판정하는 패턴을 여기서 확립한다. 이후 훅이 전부 같은 형태를 쓴다.</p></div></div>
+    <div class="step"><div class="step-tag">§08 · 3번</div><div><h3>connect — AF_UNIX까지</h3><p>IPv6와 abstract 소켓을 처음부터 넣는다. 나중에 붙이면 그 사이가 우회 경로다.</p></div></div>
+    <div class="step"><div class="step-tag">§06 · 4번</div><div><h3>file_open — 여기서 갈린다</h3><p>조상 순회와 사전 등록 중 어느 쪽을 고를지가 <b>강제 모드 설계 전체</b>를 결정한다. 이 숫자가 안 나오면 §03 훅 순서 5~7을 설계로 돌리는 판단 시점이 온다.</p></div></div>
+    <div class="step"><div class="step-tag">§07 · 5번</div><div><h3>inode 5종 — 한 세트로</h3><p>넷만 붙이고 넘어가면 나머지 하나가 우회 경로가 된다. rename은 양방향.</p></div></div>
+    <div class="step"><div class="step-tag">§10 · 6번</div><div><h3>자기 보호 6종</h3><p>여기까지 와야 "root보다 강한 경계"라는 문장을 쓸 수 있다.</p></div></div>
+  </div>
+  <div class="callout warn">
+    <span class="ct">필드를 늘리기 전에 재는 것</span>
+    <p>비교군은 셋이다 — <b>훅 없음 / 훅 있고 영장 없음 / 훅 있고 영장 있음</b>. §13의 핵심 주장인 "영장 없는 프로세스는 조회 한 번으로 빠져나간다"가 참인지는 <b>가운데 항목</b>에서 판가름 난다. 필드를 하나 추가할 때마다 이 셋을 다시 재고, <code>bpftool prog profile</code>로 어느 훅이 비싼지 직접 짚는다.</p>
+  </div>
+</section>
+
+<footer>
+  Session Warrant · eBPF 스캔 필드 · 2026-08-24<br>
+  참조 — 개념·기획·아키텍처 §04 §12 §13 §14 §15 §16 §18 · 기술 스택 §03 §09<br>
+  다음 — struct 정의를 <code>bpf/warrant.bpf.h</code>로, 이벤트 스키마를 <code>proto/warrant.proto</code>로 옮긴다
+</footer>
+
+</div>
+
+</body>
+</html>
