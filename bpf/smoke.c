@@ -6,11 +6,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>          // va_list — stdio.h 가 항상 주지는 않는다
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
 #include <errno.h>
 #include <bpf/libbpf.h>
+#include <bpf/bpf.h>         // bpf_map_lookup_elem 은 여기 있다. libbpf.h 가 아니다
 #include "smoke.skel.h"
 
 enum { ST_OPEN_TOTAL = 0, ST_OPEN_WRITE = 1, ST_FORK = 2, ST_MAX };
@@ -22,12 +24,13 @@ struct sample {
 };
 
 static volatile sig_atomic_t stop;
-static void on_sig(int _) { stop = 1; }
+static void on_sig(int sig) { (void)sig; stop = 1; }
 
-static int quiet_libbpf(enum libbpf_print_level lvl, const char *f, va_list a)
+static int quiet_libbpf(enum libbpf_print_level lvl, const char *fmt, va_list ap)
 {
-    if (lvl == LIBBPF_PRINT_DEBUG) return 0;
-    return vfprintf(stderr, f, a);
+    if (lvl == LIBBPF_PRINT_DEBUG)
+        return 0;
+    return vfprintf(stderr, fmt, ap);
 }
 
 int main(void)
