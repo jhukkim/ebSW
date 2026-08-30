@@ -30,5 +30,9 @@ clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/warrant.bpf.c -o bpf/warrant
 - 대상 식별은 `(dev, ino)` 쌍. **금지 목록은 반드시 디렉터리 inode** — 파일 inode 금지는 `mv` 후 재생성으로 뚫린다 (§15).
 - 시간은 `bpf_ktime_get_boot_ns()`. `bpf_ktime_get_ns()` 는 suspend 구간을 빼먹는다.
 - 맵과 프로그램은 bpffs 에 pin 한다. warrantd 재시작 중 태깅 공백이 생기면 안 된다.
+- **모든 타입 이름에 접두사를 붙인다** (`warrant_*`). `vmlinux.h` 는 커널의 전체 타입을
+  통째로 들여오므로 흔한 이름은 그냥 충돌한다 — `struct sample` · `struct event` ·
+  `struct task` · `struct config` 는 전부 커널에 이미 있다.
+  증상은 `error: redefinition of '...'` 뒤에 따라오는 "no member named" 무더기다.
 
 뽑아내는 값의 전체 목록: `docs/session-warrant-ebpf-fields.html`.

@@ -17,7 +17,7 @@
 
 enum { ST_OPEN_TOTAL = 0, ST_OPEN_WRITE = 1, ST_FORK = 2, ST_MAX };
 
-struct sample {
+struct smoke_sample {
     unsigned long long cgroup_id, boot_ns, ino;
     unsigned int dev, pid;
     unsigned char write, _pad[7];
@@ -70,7 +70,7 @@ int main(void)
             bpf_map_lookup_elem(sfd, &k, &v[k]);
 
         unsigned int z = 0;
-        struct sample s = {0};
+        struct smoke_sample s = {0};
         bpf_map_lookup_elem(lfd, &z, &s);
 
         printf("open %-10llu (+%-6llu)  write %-8llu  fork %-6llu | "

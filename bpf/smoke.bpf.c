@@ -38,7 +38,11 @@ struct {
 } stats SEC(".maps");
 
 // 마지막으로 본 값 하나. 로더가 읽어서 "정말 읽혔는지" 눈으로 확인하는 용도다.
-struct sample {
+//
+// 이름에 접두사가 붙은 이유: vmlinux.h 는 커널의 모든 타입을 통째로 들여온다.
+// struct sample 은 커널에 이미 있다(perf 쪽). 흔한 이름은 전부 충돌하므로
+// 이 리포의 BPF 타입은 예외 없이 접두사를 붙인다 — 제품 코드는 warrant_*.
+struct smoke_sample {
     __u64 cgroup_id;
     __u64 boot_ns;
     __u64 ino;
@@ -52,7 +56,7 @@ struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
     __uint(max_entries, 1);
     __type(key, __u32);
-    __type(value, struct sample);
+    __type(value, struct smoke_sample);
 } last SEC(".maps");
 
 static __always_inline void bump(__u32 k)
@@ -77,7 +81,7 @@ int BPF_PROG(smoke_file_open, struct file *file)
         bump(ST_OPEN_WRITE);
 
     __u32 z = 0;
-    struct sample *s = bpf_map_lookup_elem(&last, &z);
+    struct smoke_sample *s = bpf_map_lookup_elem(&last, &z);
     if (s) {
         s->cgroup_id = bpf_get_current_cgroup_id();   // ③
         s->boot_ns   = bpf_ktime_get_boot_ns();       // ④
