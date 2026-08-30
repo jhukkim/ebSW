@@ -3,12 +3,37 @@
 SSH 세션에 범위·유효기간을 가진 **영장(warrant)** 을 붙이고, 그 영장을 셸이 아니라 **커널(eBPF LSM)** 이 집행하는 서버 접근통제 제품.
 기존 게이트웨이/프록시형 SSH 접근제어(Teleport, StrongDM 등)가 못 하는 "문을 통과한 다음"을 통제한다.
 
-**현재 상태: 요구사항 골격.** `docs/` 의 기획 문서 2종이 설계 원본이고, `server/` 에 warrant-server 클래스 골격이 있다(시그니처 + 의사코드 주석, 본문 미구현). 나머지 계층은 디렉터리와 각 디렉터리의 `README.md`(무엇이 들어가고 무엇을 지켜야 하는지)만 있고 코드는 아직 없다.
-
 - `docs/session-warrant-plan.html` — 개념·기획·아키텍처 통합본 (r09, 2026-08-15). 절 번호(§01~§19)로 참조된다.
 - `docs/session-warrant-tech-stack.html` — 기술 스택 선택과 근거 (2026-08-19).
+- `docs/session-warrant-ebpf-fields.html` — BPF가 뽑아내는 값 전체 목록 (§01~§14).
 
-두 문서는 서로를 절 번호로 상호 참조한다. 설계 관련 판단이 필요하면 추측하지 말고 해당 절을 먼저 읽을 것.
+문서들은 서로를 절 번호로 상호 참조한다. 설계 관련 판단이 필요하면 추측하지 말고 해당 절을 먼저 읽을 것.
+
+## 현재 상태 (2026-08-31)
+
+**스파이크 S0 완료.** 서브 PC에서 BPF LSM이 실제로 붙고 도는 것을 확인했다.
+
+| 계층 | 상태 |
+|---|---|
+| `bpf/` | `smoke.bpf.c` + 로더 — **동작 확인됨**. 제품 코드는 아직 없다 |
+| `deploy/` | `bootstrap.sh` · `enable-bpf-lsm.sh` — 동작 |
+| `server/` | Java 클래스 골격 52개 (시그니처 + 의사코드 주석, 본문 미구현). 빌드 미확인 |
+| `proto/` `agent/` `pam/` `web/` `bench/` | 디렉터리 + `README.md` 만. 코드 없음 |
+
+각 디렉터리의 `README.md` 에 그 계층이 지켜야 할 제약이 적혀 있다. 작업 전에 해당 README를 먼저 읽을 것.
+
+## S0에서 실측된 것 (추측으로 덮어쓰지 말 것)
+
+`bpf/smoke` 를 유휴 상태 개발 노트북에서 71초 돌린 결과다.
+
+- **`file_open` 호출 빈도: 유휴 초당 5~15건, 명령 실행 버스트 시 초당 400~1,200건.**
+  사전 추정치(초당 수천)보다 두 자릿수 낮다. 다만 **유휴 노트북 숫자다** — S1은 반드시 부하 구간(`apt install`·커널 빌드·대형 리포 `git status`)에서 재야 한다.
+- **쓰기 의도는 전체 `file_open` 의 4.7%** (123 / 2,598).
+  → **`f_mode & FMODE_WRITE` 비트 테스트 하나가 95%를 걸러낸다.** 판정 함수의 앞문은 이 한 줄이어야 한다. 훅은 100% 불리지만 맵 조회까지 가는 건 5%다.
+- **`dev` major 0(procfs·sysfs·tmpfs·cgroupfs·pipefs)이 트래픽의 대부분.** 실디스크(`259:x`)는 소수다.
+  그렇다고 **superblock 필터로 건너뛰지 않는다** — `/proc/sys/kernel/*` 쓰기와 `/sys/fs/cgroup` 조작은 정확히 통제 대상이다. 쓰기 게이트 하나로 충분하다.
+- **`sched_process_fork` 는 71초에 51건.** 2차 방어선은 사실상 공짜다.
+- **cgroup id가 세션·서비스마다 다르게 찍힌다** (systemd 자신은 `pid=1`). §04의 1차 태그가 실물로 성립한다.
 
 ## 핵심 개념 (여기서 벗어나면 제품이 아니다)
 
@@ -31,18 +56,38 @@ SSH 세션에 범위·유효기간을 가진 **영장(warrant)** 을 붙이고, 
 | DB | — | PostgreSQL 18 (감사 이벤트는 선언적 파티셔닝) |
 | 대시보드 | TypeScript | React 19 · Vite — 또는 Grafana로 대체 |
 
-개발 커널 6.8(Ubuntu 24.04) / 검증 7.0(Ubuntu 26.04) · Rocky 9 호환 검증.
-개발은 **물리 서브 PC 한 대**(Ubuntu 24.04.4 / 6.8.0)에서 한다 — 편집은 macOS, 빌드·실행·측정은 서브 PC, 동기화는 GitHub. VM 층을 끼우면 커널 문제와 가상화 문제를 매번 구분해야 한다. 3노드 구성은 중앙 서버가 붙는 시점에 꺼낸다.
 중앙 서버는 Spring Web MVC + 가상 스레드(WebFlux 불필요) · Testcontainers + JUnit 5 · Ed25519는 JDK 내장.
 
 **Spring Boot 4는 스타터 이름이 Boot 3과 다르다.** `spring-boot-starter-web` → `-webmvc`, oauth2 스타터 → `spring-boot-starter-security-oauth2-*`, Flyway는 전용 스타터, gRPC는 Boot가 spring-grpc를 흡수해 `spring-boot-starter-grpc-server`가 됐다 (`org.springframework.grpc` 스타터는 1.0.3에서 멈췄으니 그 BOM을 import하지 말 것). Boot 3 예제를 그대로 옮기면 "Could not find ..."로 실패한다.
 
 언어가 넷인 것은 제약이다: BPF는 C만 되고, PAM은 sshd 주소 공간에 dlopen되므로 Go 런타임을 넣을 수 없고, 중앙은 Java로 정해져 있다. Rust(aya)가 아니라 Go인 이유는 성능이 아니라 **막혔을 때 검색으로 풀리는가**다.
 
-## 리포지토리 구조 (모노레포 — `server/` 외에는 디렉터리 골격만)
+## 개발 환경
+
+**물리 서브 PC 한 대**에서 개발한다. Vagrant VM이 아니다 — BPF LSM은 부팅 파라미터와 커널 BTF에 묶여 있어서, VM 층을 끼우면 "안 되는 게 커널 문제인지 가상화 문제인지"를 매번 의심하게 된다.
+
+| | |
+|---|---|
+| 서브 PC | Ubuntu 24.04.4 LTS · 커널 6.8.0 — 기획서 §02의 개발 기준과 일치 |
+| 편집 | macOS (이 리포) |
+| 빌드·실행·측정 | 서브 PC |
+| 동기화 | GitHub `jhukkim/ebSW` · 브랜치 `main` |
+
+검증 대상: 커널 7.0(Ubuntu 26.04) · Rocky 9 호환. 3노드 구성은 중앙 서버가 붙는 시점에 꺼낸다.
+
+```sh
+./deploy/bootstrap.sh              # 커널·BTF·lsm=bpf·툴체인 확인. 표로 찍는다
+./deploy/bootstrap.sh --install    # 부족한 것 설치 (22.04/24.04 양쪽 대응)
+sudo ./deploy/enable-bpf-lsm.sh    # lsm= 에 bpf 추가. 재부팅 필요
+make -C bpf && sudo ./bpf/smoke    # S0 스모크
+```
+
+`cat /sys/kernel/security/lsm` 출력에 `bpf` 가 없으면 강제 모드는 한 줄도 못 짠다. `enable-bpf-lsm.sh` 는 **지금 떠 있는 목록을 읽어 거기에 `,bpf` 만 덧붙인다** — `lsm=bpf` 만 단독으로 넣으면 AppArmor가 빠지면서 부팅이 깨질 수 있다.
+
+## 리포지토리 구조 (모노레포)
 
 ```
-proto/    protobuf 스키마 — 팀 간 계약. 가장 먼저 확정한다
+proto/    protobuf 스키마 — 팀 간 계약. 스파이크 뒤에 확정한다
 bpf/      C · BPF 프로그램 (vmlinux.h는 gitignore, 커밋하지 않는다)
 agent/    Go · warrantd
           cmd/warrantd/ · internal/{loader,bpfmap,pamsock,policy,ringbuf,upstream,store}/ · bpf/(bpf2go 생성물, 커밋한다)
@@ -53,19 +98,20 @@ deploy/   bootstrap.sh · enable-bpf-lsm.sh · systemd/ · ansible/
 bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실측)
 ```
 
-각 디렉터리의 `README.md` 에 그 계층이 지켜야 할 제약이 적혀 있다. 작업 전에 해당 README 를 먼저 읽을 것.
-
 ## 작업 규칙
 
-- **`proto/warrant.proto` 가 단일 진실 원본이다.** `struct warrant` 의 필드, 서버 엔티티, BPF 맵 값이 모두 같은 `.proto` 에서 나와야 한다. 커널 구조체와 서버 엔티티가 어긋나면 디버깅이 지옥이 된다.
+- **BPF 타입 이름에는 예외 없이 접두사를 붙인다** (`warrant_*`). `vmlinux.h` 는 커널의 전체 타입을 통째로 들여오므로 `struct sample` · `event` · `task` · `config` 는 전부 이미 존재한다. 증상은 `error: redefinition of ...` 한 줄 뒤에 따라오는 "no member named" 무더기다 — 첫 줄만 보면 된다.
+- **스파이크 전 구간은 감사 모드다.** LSM 훅은 `return 0` 만 한다. 자기보호 6종을 붙이기 전에 `-EPERM` 을 켜면 verifier를 통과한 버그 하나로 자기 박스에서 잠긴다.
+- **`proto/warrant.proto` 가 단일 진실 원본이다.** `struct warrant` 의 필드, 서버 엔티티, BPF 맵 값이 모두 같은 `.proto` 에서 나와야 한다. 커널 구조체와 서버 엔티티가 어긋나면 디버깅이 지옥이 된다. 단, **확정은 스파이크 뒤에** — 커널이 뭘 필요로 하는지 모르는 상태에서 확정하면 세 계층이 다 그 위에 붙은 뒤에 고치게 된다.
 - **훅은 한 번에 하나씩 붙인다.** 순서: `sched_process_fork` → `bprm_check_security` → `socket_connect` → `file_open` → `inode_{create,unlink,rename,link,symlink}`(5개 한 세트) → 자기보호 6종 → `socket_sendmsg` → `kprobe/security_*` 미러. 훅 하나마다 verifier 통과와 오버헤드를 같이 확인한다.
 - **자기 보호 6종은 정책이 아니라 제품이 강제 삽입하는 기본 규칙이다** (`lsm/bpf`, `task_kill`, `sb_umount`, `ptrace_access_check`, `kernel_module_request`, warrantd 자기 파일 쓰기 금지). 영장 작성자가 실수로 열 수 없어야 하고, 하나라도 빠지면 나머지가 무의미하다 (§16).
 - **BPF 프로그램과 맵은 bpffs에 pin한다.** warrantd 재시작 중에도 태깅 공백이 생기면 안 된다. systemd 유닛에 `Before=sshd.service` 는 필수다 — 없으면 부팅 직후 세션이 태그 없이 시작된다.
-- **PAM 스택에서 `pam_warrant.so` 는 `pam_systemd.so` 뒤에 온다.** 그 전에는 `session-N.scope` 가 아직 없다. `/etc/pam.d/sshd` 를 건드리는 작업은 VM 콘솔 접근 경로를 확보한 상태에서만 한다.
+- **PAM 스택에서 `pam_warrant.so` 는 `pam_systemd.so` 뒤에 온다.** 그 전에는 `session-N.scope` 가 아직 없다. `/etc/pam.d/sshd` 를 건드리는 작업은 **물리 콘솔 접근이 가능한 상태에서만** 한다.
 - **서명은 protobuf 직렬화 바이트에 한다.** JSON 서명은 키 순서·공백 정규화 문제를 만든다. Ed25519는 JDK 내장을 쓴다(BouncyCastle 불필요).
 - **`bench/` 는 초기 구조에 넣는다.** §04의 우회 경로 표가 그대로 bats 테스트 케이스다. §18이 인정한 4가지 구멍(만료 전 열어둔 fd, connect 없는 UDP, 데몬 위임, `kubectl exec`)도 **skip 사유를 명시해 실패 테스트로 커밋**한다 — "알고 있으나 막지 못한다"와 "모른다"는 다르게 취급된다.
 - **감사 기록은 절제한다.** 차단은 전건 기록, 허용은 `exec`·`connect` 처럼 빈도 낮은 것만. 쓰기 허용까지 다 남기면 ringbuf가 넘친다. 유실 구간은 반드시 명시적으로 기록해 "빈 구간"을 숨기지 않는다 (§13, §14).
 - **정책 컴파일러는 실행 허용 목록과 쓰기 허용 목록의 조합을 경고해야 한다.** 예: `systemctl` 실행 허용 + `/etc/systemd/system` 쓰기 허용 = 임의 코드 실행 경로 (§04).
+- **`.gitignore` 의 전역 무력화 블록을 지우지 말 것.** 사용자 전역 `~/.gitignore_global` 이 `docs` 와 `*.md` 를 제외한다. 이 리포에서는 그 둘이 1급 산출물이라 리포 `.gitignore` 에서 되살려놨다.
 
 ## 표현 주의
 
@@ -74,32 +120,35 @@ bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실�
 - argv는 1급 증거가 아니다(`exec -a` 로 위조 가능 + BPF 스택 제약으로 잘림). 신뢰 근거는 커널이 실제로 연 바이너리의 inode다 (§14).
 - 이 제품은 "root를 없애는 제품"이 아니라 "root가 하는 일에 사유와 기한을 붙이는 제품"이다. 커널 익스플로잇·부팅 경로 장악 앞에서는 무의미하다 (§06).
 
-## 환경 사전 확인
-
-```sh
-cat /sys/kernel/security/lsm   # 출력에 bpf 가 없으면 강제 모드는 한 줄도 못 짠다
-```
-
-없으면 `/etc/default/grub` 의 `GRUB_CMDLINE_LINUX_DEFAULT` 에 **기존 목록 뒤에 `,bpf` 를 덧붙여** 넣고 `update-grub` 후 재부팅한다. `lsm=bpf` 만 단독으로 넣으면 AppArmor가 빠지면서 부팅이 깨질 수 있다.
-
 ## 다음 단계 — 스파이크가 먼저다
 
-기획서 §09 가 선행 검증 셋을 지목했다: PAM 에서 session scope 가 확정되는 타이밍 ·
-**`file_open` 훅의 실측 오버헤드** · inode 갱신 추적의 안정성. **이 중 둘째가 가장 위험하므로 PoC 는 여기서 시작한다.**
+기획서 §09가 선행 검증 셋을 지목했다: PAM에서 session scope가 확정되는 타이밍 · **`file_open` 훅의 실측 오버헤드** · inode 갱신 추적의 안정성. **이 중 둘째가 가장 위험하므로 PoC는 여기서 시작한다.**
 
 스파이크는 던져버리는 코드다. 남기는 건 `bench/` 의 측정 하네스와 bats 케이스뿐이다.
-**`proto/warrant.proto` 는 스파이크 뒤에 쓴다** — 커널이 실제로 뭘 필요로 하는지 모르는 상태에서
-단일 진실 원본을 확정하면, 세 계층이 다 그 위에 붙은 뒤에 고치게 된다.
 
-| | 스파이크 | 판정 | 실패하면 |
+| | 스파이크 | 판정 기준 | 실패하면 |
 |---|---|---|---|
-| S0 | 환경 — `bootstrap.sh` · `enable-bpf-lsm.sh` · `bpf/smoke` | 스모크가 attach 된다 | 개발 환경을 옮긴다 |
-| S1 | **`file_open` 오버헤드** — 훅없음/빈훅/판정훅 3단 비교, p99 까지 | 한 자릿수 % | 쓰기 통제를 `inode_*` 5종만으로 재설계 |
+| **S0** ✅ | 환경 — `bootstrap.sh` · `enable-bpf-lsm.sh` · `bpf/smoke` | attach·동작 확인 | — |
+| **S1** ← 다음 | **`file_open` 오버헤드** — 4단 비교, p99까지 | 한 자릿수 % | 쓰기 통제를 `inode_*` 5종만으로 재설계 |
 | S2 | 태그 두 겹 — cgroup + fork 전파, §04 표 = bats | 앞 3줄 초록, 뒤 2줄 명시적 실패 | **제품을 다시 정의한다** |
-| S3 | PAM 타이밍 — 로그만 찍는 20줄 모듈 | scope 가 이미 존재 | warrantd 가 cgroup 트리 순회 (태깅 공백 측정) |
-| S4 | inode 안정성 — upgrade · vim 저장 · logrotate | 재컴파일 지점 목록화 | fanotify 범위 확대 |
+| S3 | PAM 타이밍 — 로그만 찍는 20줄 모듈 | scope가 이미 존재 | warrantd가 cgroup 트리 순회 (태깅 공백 측정) |
+| S4 | inode 안정성 — upgrade · `vim` 저장 · logrotate | 재컴파일 지점 목록화 | fanotify 범위 확대 |
 
-그 뒤가 §09 MVP: 감사 모드 2개월 → 영장 없는 접속 탐지 +1개월 → 강제 +2개월 · 승인 연동 병행.
+### S1은 3단이 아니라 4단이다
 
-**스파이크 전 구간은 감사 모드다.** LSM 훅은 `return 0` 만 한다 — 자기보호 6종을 붙이기 전에
-`-EPERM` 을 켜면 verifier 를 통과한 버그 하나로 자기 박스에서 잠긴다.
+S0에서 쓰기 비중이 4.7%로 나왔으므로, **쓰기 게이트가 독립된 측정 층**이 된다. 3단으로 재면 "훅이 비싼가 판정이 비싼가"가 뭉개진다.
+
+| | 훅 내용 | 재는 것 |
+|---|---|---|
+| A | 훅 없음 | 기준선 |
+| B | `return 0` 만 | LSM 훅 부착 자체의 비용 |
+| C | `+ f_mode & FMODE_WRITE` 앞문 | 95%가 여기서 끝난다 |
+| D | `+ cgroup 조회 · 맵 2회 · 시간 비교` | 나머지 5%가 내는 비용 |
+
+워크로드는 **부하 구간**이어야 한다 — `apt install --reinstall` · 커널 헤더 빌드 · 대형 리포 `git status` · `find /usr -type f \| xargs -P8 head -c1`. **평균이 아니라 p99를 본다.** 평균 2%인데 p99가 30%면 못 쓴다. dev major 분포도 같이 찍어 "왜 안 걸렀나"를 나중에 설명할 수 있게 남긴다.
+
+### 스파이크 다음 — §09 MVP
+
+감사 모드 2개월 → 영장 없는 접속 탐지 +1개월 → 강제 +2개월. 승인 연동(Slack → 발급)은 병행하며, **이 흐름이 없으면 아무도 안 쓴다.**
+
+감사 모드에서 멈춰도 제품이 미완성이 아니라는 게 이 계획의 성질이다. 제품 검증과 영업 자료가 같은 데이터에서 나온다.
