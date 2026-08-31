@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """S1 결과를 표로 찍는다.
 
-  python3 report.py out/20260831-120000
+  python3 report.py out/20260901-000107
 
 매크로는 A 대비 %, 마이크로는 훅 1회당 ns 분포다.
 두 숫자를 곱하거나 환산하지 말 것 — PROBE 빌드는 계측 비용을 포함한다.
 """
 import json
+import math
 import os
+import re
+import statistics as st
 import sys
+from collections import defaultdict
 from glob import glob
 
 TIERS = ["a", "b", "c", "d"]
@@ -18,24 +22,28 @@ TIER_DESC = {
     "c": "+ FMODE_WRITE 앞문",
     "d": "+ cgroup·맵2회·시간",
 }
+PASS_RE = re.compile(r"_p\d+$")
 
 
-def pct(sorted_vals, q):
-    if not sorted_vals:
+def pct(vals, q):
+    if not vals:
         return float("nan")
-    i = min(len(sorted_vals) - 1, int(round(q * (len(sorted_vals) - 1))))
-    return sorted_vals[i]
+    i = min(len(vals) - 1, max(0, math.ceil(q * len(vals)) - 1))
+    return vals[i]
 
 
 def load_macro(d):
-    out = {}
+    """macro_<tier>_<wl>[_p<N>].json 을 티어·워크로드별로 합친다.
+
+    패스를 나눠 교차 실행했으므로 전부 모아야 한 티어의 표본이 된다."""
+    out = defaultdict(lambda: defaultdict(list))
     for f in glob(os.path.join(d, "macro_*.json")):
         base = os.path.basename(f)[len("macro_"):-len(".json")]
+        base = PASS_RE.sub("", base)
         tier, wl = base.split("_", 1)
         with open(f) as fh:
-            r = json.load(fh)["results"][0]
-        out.setdefault(wl, {})[tier] = sorted(r["times"])
-    return out
+            out[wl][tier] += json.load(fh)["results"][0]["times"]
+    return {wl: {t: sorted(v) for t, v in d2.items()} for wl, d2 in out.items()}
 
 
 def macro_table(d):
@@ -46,104 +54,124 @@ def macro_table(d):
     print()
     for wl in sorted(data):
         t = data[wl]
-        n = len(next(iter(t.values()), []))
         base = t.get("a")
-        print(f"  {wl}   (runs={n})")
-        print(f"    {'':4} {'설명':<22} {'mean':>9} {'p95':>9} {'max':>9} "
-              f"{'Δmean':>8} {'Δp95':>8}")
+        n = len(base) if base else 0
+        print(f"  {wl}   (n={n})")
+        print(f"    {'':4} {'설명':<22} {'mean':>9} {'sd':>7} {'p95':>9} "
+              f"{'Δmean':>8} {'판정':>12}")
         for tier in TIERS:
             v = t.get(tier)
             if not v:
                 continue
-            m, p95, mx = sum(v) / len(v), pct(v, 0.95), v[-1]
+            m, sd = st.mean(v), st.stdev(v) if len(v) > 1 else 0.0
             if base and tier != "a":
-                bm = sum(base) / len(base)
-                dm = f"{(m / bm - 1) * 100:+7.1f}%"
-                dp = f"{(p95 / pct(base, 0.95) - 1) * 100:+7.1f}%"
+                bm, bsd = st.mean(base), st.stdev(base) if len(base) > 1 else 0.0
+                dm = (m / bm - 1) * 100
+                # 두 표본 평균 차이의 표준오차. 이걸 못 넘으면 잰 게 아니다.
+                se = math.hypot(sd / math.sqrt(len(v)), bsd / math.sqrt(len(base)))
+                sig = "노이즈 이하" if abs(m - bm) < 2 * se else f"±{2*se/bm*100:.1f}% 초과"
+                dms = f"{dm:+7.1f}%"
             else:
-                dm = dp = "     — "
+                dms, sig = "     — ", ""
             print(f"    {tier.upper():<4} {TIER_DESC[tier]:<22} "
-                  f"{m:8.3f}s {p95:8.3f}s {mx:8.3f}s {dm:>8} {dp:>8}")
+                  f"{m:8.3f}s {sd:6.3f}s {pct(v, 0.95):8.3f}s {dms:>8} {sig:>12}")
         print()
-    print("  반복이 수십 회라 여기서 p99 를 뽑는 건 의미가 없다. p99 는 아래 마이크로에 있다.")
+    print("  '노이즈 이하' 는 오버헤드가 0 이라는 뜻이 아니라 이 표본으로는")
+    print("  분해되지 않는다는 뜻이다. 상한으로만 읽고, 필요하면 --passes 를 늘린다.")
     print()
+
+
+def _probe_files(d):
+    out = defaultdict(dict)          # tier -> wl -> path
+    for f in sorted(glob(os.path.join(d, "probe_*.json"))):
+        base = os.path.basename(f)[len("probe_"):-len(".json")]
+        tier, _, wl = base.partition("_")
+        out[tier][wl or "(전체)"] = f
+    return out
 
 
 def micro_table(d):
-    files = sorted(glob(os.path.join(d, "probe_*.json")))
-    if not files:
+    probes = _probe_files(d)
+    if not probes:
         return
     print("── 마이크로: 훅 1회당 소요 (PROBE 빌드) ─────────────────────")
     print()
-    print("  PROBE 빌드는 훅마다 bpf_ktime_get_ns() 를 두 번 부른다.")
-    print("  그 비용이 티어 B 가 내는 비용과 자릿수가 비슷하다 — 절대값을")
-    print("  매크로 % 로 환산하지 말고, 티어 간 '차이'만 읽을 것.")
+    print("  PROBE 빌드는 훅마다 bpf_ktime_get_ns() 를 두 번 부른다 — 티어 B 의")
+    print("  숫자가 사실상 그 계측 비용이다. 절대값을 매크로 % 로 환산하지 말고")
+    print("  티어 간 차이만 읽을 것. 카운터·히스토그램은 타이머 밖에 있다.")
     print()
-    print(f"    {'':4} {'호출':>12} {'쓰기':>14} {'p50':>8} {'p90':>8} "
-          f"{'p99':>8} {'p99.9':>8}")
-    for f in files:
-        tier = os.path.basename(f)[len("probe_"):-len(".json")]
-        with open(f) as fh:
-            j = json.load(fh)
-        hist = {int(k): v for k, v in j["lat_log2_ns"].items()}
-        total = sum(hist.values())
-        c = j["counters"]
+    wls = sorted({w for m in probes.values() for w in m})
+    for wl in wls:
+        print(f"  {wl}")
+        print(f"    {'':4} {'호출':>10} {'초당':>9} {'쓰기':>13} {'p50':>9} "
+              f"{'p90':>9} {'p99':>10} {'p99.9':>11}")
+        for tier in ("b", "c", "d"):
+            f = probes.get(tier, {}).get(wl)
+            if not f:
+                continue
+            with open(f) as fh:
+                j = json.load(fh)
+            hist = {int(k): v for k, v in j["lat_log2_ns"].items()}
+            total = sum(hist.values())
+            c = j["counters"]
+            opens = c.get("total", total) or total
+            secs = j.get("seconds") or 1
 
-        def q(p):
-            if not total:
+            # 쓰기 비중은 dev 히스토그램에서 뽑는다. 판정 경로에서 뽑으면
+            # 티어 B 는 그 코드가 없어서 구조적 0 이 측정된 0 처럼 보인다.
+            dev = j["dev_major"]
+            w = sum(x["write"] for x in dev.values())
+            tot = sum(x["read"] + x["write"] for x in dev.values()) or opens
+
+            def q(p):
+                if not total:
+                    return "—"
+                need, acc = total * p, 0
+                for b in sorted(hist):
+                    acc += hist[b]
+                    if acc >= need:
+                        return f"{(1 << b) if b else 0}-{(1 << (b + 1)) - 1}"
                 return "—"
-            need, acc = total * p, 0
-            for b in sorted(hist):
-                acc += hist[b]
-                if acc >= need:
-                    lo, hi = (1 << b) if b else 0, (1 << (b + 1)) - 1
-                    return f"{lo}-{hi}"
-            return "—"
 
-        opens = c["open_total"] or total
-        w = c["open_write"]
-        wr = f"{w} ({w / opens * 100:.1f}%)" if opens else str(w)
-        print(f"    {tier.upper():<4} {opens:>12,} {wr:>14} "
-              f"{q(.50):>8} {q(.90):>8} {q(.99):>8} {q(.999):>8}   ns")
-    print()
-    for f in files:
-        tier = os.path.basename(f)[len("probe_"):-len(".json")]
-        with open(f) as fh:
-            j = json.load(fh)
-        c = j["counters"]
-        if c["tag_hit"] or c["tag_miss"]:
-            print(f"    {tier.upper()}: tag_hit={c['tag_hit']:,} "
-                  f"tag_miss={c['tag_miss']:,} expired={c['expired']:,}")
-    print()
+            print(f"    {tier.upper():<4} {opens:>10,} {opens/secs:>8,.0f} "
+                  f"{w:>6,} ({w/tot*100:4.1f}%) {q(.50):>9} {q(.90):>9} "
+                  f"{q(.99):>10} {q(.999):>11}")
+        # 태그 조회가 실제로 히트했는지. 0 이면 그 실행의 D 는 버린다.
+        f = probes.get("d", {}).get(wl)
+        if f:
+            c = json.load(open(f))["counters"]
+            print(f"      D 판정: tag_hit={c.get('tag_hit',0):,} "
+                  f"tag_miss={c.get('tag_miss',0):,} "
+                  f"read={c.get('read',0):,} expired={c.get('expired',0):,}")
+            if not c.get("tag_hit"):
+                print("      경고: tag_hit=0 — 태그가 안 심겼다. 이 D 숫자는 버릴 것")
+        print()
 
 
 def dev_table(d):
-    # 가장 정보가 많은 티어(D) 의 PROBE 결과를 쓴다.
-    for tier in ("d", "c", "b"):
-        f = os.path.join(d, f"probe_{tier}.json")
-        if os.path.exists(f):
-            break
-    else:
+    probes = _probe_files(d)
+    if not probes:
         return
-    with open(f) as fh:
-        dev = json.load(fh)["dev_major"]
-    if not dev:
-        return
-    rows = [(int(k), v["read"], v["write"]) for k, v in dev.items()]
-    total = sum(r + w for _, r, w in rows)
-    if not total:
-        return
-    print("── dev major 분포 ───────────────────────────────────────────")
+    print("── dev major 분포 (ns 단위 아님, 호출 수) ───────────────────")
     print()
-    print("  major 0 은 procfs·sysfs·tmpfs·cgroupfs·pipefs 다. 트래픽 대부분이")
-    print("  여기라고 해서 superblock 으로 건너뛰면 안 된다 —")
-    print("  /proc/sys/kernel/* 쓰기와 /sys/fs/cgroup 조작이 정확히 통제 대상이다 (§15).")
+    print("  major 0 은 procfs·sysfs·tmpfs·cgroupfs·pipefs, 259 는 nvme 다.")
+    print("  트래픽이 어디에 몰리든 superblock 으로 건너뛰지 않는다 —")
+    print("  /proc/sys/kernel/* 쓰기와 /sys/fs/cgroup 조작이 통제 대상이다 (§15).")
     print()
-    print(f"    {'major':>6} {'read':>12} {'write':>10} {'합':>12} {'비중':>7}")
-    for mj, r, w in sorted(rows, key=lambda x: -(x[1] + x[2]))[:12]:
-        s = r + w
-        print(f"    {mj:>6} {r:>12,} {w:>10,} {s:>12,} {s / total * 100:6.1f}%")
-    print()
+    src = probes.get("d") or probes.get("c") or probes.get("b") or {}
+    for wl, f in sorted(src.items()):
+        with open(f) as fh:
+            dev = json.load(fh)["dev_major"]
+        rows = [(int(k), v["read"], v["write"]) for k, v in dev.items()]
+        total = sum(r + w for _, r, w in rows)
+        if not total:
+            continue
+        print(f"  {wl}")
+        print(f"    {'major':>6} {'read':>11} {'write':>9} {'합':>11} {'비중':>7}")
+        for mj, r, w in sorted(rows, key=lambda x: -(x[1] + x[2]))[:6]:
+            s = r + w
+            print(f"    {mj:>6} {r:>11,} {w:>9,} {s:>11,} {s/total*100:6.1f}%")
+        print()
 
 
 def main():
@@ -154,8 +182,10 @@ def main():
     macro_table(d)
     micro_table(d)
     dev_table(d)
-    print("판정 기준: 매크로 Δ 가 한 자릿수 % 여야 한다.")
-    print("두 자릿수면 쓰기 통제를 inode_* 5종만으로 재설계한다 (CLAUDE.md S1).")
+    print("판정: 매크로 Δ 가 한 자릿수 % 여야 한다.")
+    print("      두 자릿수면 쓰기 통제를 inode_* 5종만으로 재설계한다 (CLAUDE.md S1).")
+    print("      전부 '노이즈 이하' 면 통과가 아니라 미측정이다 — --passes 를 늘려")
+    print("      상한을 좁히고, 그 상한을 결론으로 적는다.")
 
 
 if __name__ == "__main__":

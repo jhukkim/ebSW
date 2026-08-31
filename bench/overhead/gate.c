@@ -18,12 +18,13 @@
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 
-#define OH_CNT_MAX 5
+#define OH_CNT_MAX 7
 #define OH_LAT_MAX 64
-#define OH_DEV_MAX 512
+#define OH_DEV_MAX 8192
 
+// gate.bpf.c 의 OH_R_* 순서와 같아야 한다. 마지막 칸이 총계다.
 static const char *cnt_name[OH_CNT_MAX] = {
-    "open_total", "open_write", "tag_hit", "tag_miss", "expired"
+    "pass", "read", "tag_miss", "tag_hit", "revoked", "expired", "total"
 };
 
 struct oh_warrant {
@@ -92,7 +93,7 @@ static void dump(struct bpf_object *obj, FILE *f, const char *objpath, double se
     fd = map_fd(obj, "oh_dev");
     fprintf(f, "  \"dev_major\": {");
     first = 1;
-    for (int mj = 0; mj < 256; mj++) {
+    for (int mj = 0; mj < OH_DEV_MAX / 2; mj++) {
         __u64 r = fd < 0 ? 0 : sum_percpu(fd, mj * 2);
         __u64 w = fd < 0 ? 0 : sum_percpu(fd, mj * 2 + 1);
         if (!r && !w) continue;

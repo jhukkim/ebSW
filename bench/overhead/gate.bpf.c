@@ -42,14 +42,20 @@ struct oh_warrant {
     __u8  _pad[7];
 };
 
+// 판정 결과 코드. oh_decide 는 세지 않고 이것만 돌려준다 —
+// 계측을 판정 안에 두면 티어마다 계측 비용이 달라진다(B 0회, C 1회, D 2회).
+// 그러면 B→C 점프가 앞문 비용이 아니라 계측 비용이 되어버린다.
 enum {
-    OH_OPEN_TOTAL = 0,
-    OH_OPEN_WRITE,         // 앞문을 통과한 것 = S0 의 4.7%
-    OH_TAG_HIT,
-    OH_TAG_MISS,
-    OH_EXPIRED,
-    OH_CNT_MAX
+    OH_R_PASS = 0,         // 앞문을 통과. 티어 B 는 언제나 여기
+    OH_R_READ,             // 쓰기 아님 — 95% 가 여기서 끝난다
+    OH_R_TAG_MISS,         // 무영장 세션
+    OH_R_TAG_HIT,          // 유효한 영장
+    OH_R_REVOKED,          // 강제 모드였다면 -EPERM
+    OH_R_EXPIRED,          // 강제 모드였다면 -EPERM
+    OH_R_MAX
 };
+#define OH_C_TOTAL OH_R_MAX
+#define OH_CNT_MAX (OH_R_MAX + 1)
 
 // ── 맵 ─────────────────────────────────────────────────────────────
 // 전부 PERCPU 다. S0 의 smoke 는 평범한 ARRAY + __sync_fetch_and_add 를 썼는데,
@@ -72,9 +78,11 @@ struct {
 
 // dev major 별 · 읽기/쓰기별 분포. index = major * 2 + write
 // "왜 95% 를 안 걸렀나" 를 나중에 설명하려면 이 표가 있어야 한다.
+// 4096 major 를 다 담는다. 512 칸(major 255)으로 잡았더니 259(nvme/blkext)가
+// 255 로 접혀 들어가서 "major 255 가 98.9%" 라는 거짓 표가 나왔다.
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-    __uint(max_entries, 512);
+    __uint(max_entries, 8192);
     __type(key, __u32);
     __type(value, __u64);
 } oh_dev SEC(".maps");
@@ -136,41 +144,28 @@ static __always_inline int oh_decide(struct file *file)
     // 비트 테스트 하나가 95% 를 여기서 끝낸다. 맵 조회까지 가는 건 5% 다.
     __u32 mode = BPF_CORE_READ(file, f_mode);
     if (!(mode & FMODE_WRITE))
-        return 0;
-#if PROBE
-    oh_bump(OH_OPEN_WRITE);
-#endif
+        return OH_R_READ;
 #endif /* TIER >= 2 */
 
 #if TIER >= 3
     // 나머지 5% 가 내는 비용: cgroup 조회 1 + 해시 조회 2 + 시간 비교 1
     __u64 cg = bpf_get_current_cgroup_id();
     __u64 *wid = bpf_map_lookup_elem(&oh_tag, &cg);
-    if (!wid) {
-#if PROBE
-        oh_bump(OH_TAG_MISS);
-#endif
-        return 0;                          // 무영장 세션 — 감사 모드에서는 통과
-    }
+    if (!wid)
+        return OH_R_TAG_MISS;              // 무영장 세션 — 감사 모드에서는 통과
     struct oh_warrant *w = bpf_map_lookup_elem(&oh_warrants, wid);
     if (!w)
-        return 0;
-#if PROBE
-    oh_bump(OH_TAG_HIT);
-#endif
+        return OH_R_TAG_MISS;
     if (w->revoked)
-        return 0;                          // 강제 모드였다면 -EPERM
+        return OH_R_REVOKED;               // 강제 모드였다면 -EPERM
     // 만료가 세션 안에서 발효된다 (§05·§12). 유저 공간 왕복도 타이머도 없다.
-    if (bpf_ktime_get_boot_ns() > w->expires_ns) {
-#if PROBE
-        oh_bump(OH_EXPIRED);
-#endif
-        return 0;                          // 강제 모드였다면 -EPERM
-    }
+    if (bpf_ktime_get_boot_ns() > w->expires_ns)
+        return OH_R_EXPIRED;               // 강제 모드였다면 -EPERM
+    return OH_R_TAG_HIT;
 #endif /* TIER >= 3 */
 
     (void)file;
-    return 0;
+    return OH_R_PASS;
 }
 
 // ── 훅 ─────────────────────────────────────────────────────────────
@@ -181,21 +176,33 @@ int BPF_PROG(oh_file_open, struct file *file)
     __u64 t0 = bpf_ktime_get_ns();
 #endif
 
-    int r = oh_decide(file);
+    int code = oh_decide(file);
 
 #if PROBE
+    // ── 여기부터는 계측이다. 타이머를 먼저 닫는다 ──────────────────
     oh_record(bpf_ktime_get_ns() - t0);
-    oh_bump(OH_OPEN_TOTAL);
+    oh_bump(OH_C_TOTAL);
+    if (code >= 0 && code < OH_R_MAX)
+        oh_bump(code);
 
+    // dev major × 읽기/쓰기. 모든 티어가 똑같이 센다 —
+    // 쓰기 비중을 판정 경로에서 뽑으면 티어 B 는 그 코드가 없어서
+    // 구조적 0 이 측정된 0 처럼 보인다.
     __u32 dev = BPF_CORE_READ(file, f_inode, i_sb, s_dev);
     __u32 mj  = OH_MAJOR(dev);
-    if (mj > 255)
-        mj = 255;
+    if (mj > 4095)
+        mj = 4095;
     __u32 mode = BPF_CORE_READ(file, f_mode);
     __u32 k = mj * 2 + ((mode & FMODE_WRITE) ? 1 : 0);
     __u64 *v = bpf_map_lookup_elem(&oh_dev, &k);
     if (v)
         (*v)++;
+#else
+    // PROBE=0 에서는 code 를 아무도 안 쓴다. 그대로 두면 clang 이
+    // 판정 자체를 지워버릴 수 있다 — 그러면 티어 C·D 가 B 와 같아진다.
+    asm volatile("" : : "r"(code) : "memory");
 #endif
-    return r;
+
+    // 스파이크 전 구간 감사 모드. 여기를 -EPERM 으로 바꾸지 말 것 (§16).
+    return 0;
 }

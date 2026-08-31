@@ -21,19 +21,19 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-RUNS=10
+RUNS=5
+PASSES=4
 WARMUP=3
 WITH_APT=0
 OUT="out/$(date +%Y%m%d-%H%M%S)"
 WORKLOADS="w_find,w_git,w_build,w_untar"
-MICRO_WL="w_build"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --runs)      RUNS=$2; shift 2 ;;
+        --passes)    PASSES=$2; shift 2 ;;
         --warmup)    WARMUP=$2; shift 2 ;;
         --workloads) WORKLOADS=$2; shift 2 ;;
-        --micro)     MICRO_WL=$2; shift 2 ;;
         --with-apt)  WITH_APT=1; shift ;;
         --out)       OUT=$2; shift 2 ;;
         *) echo "알 수 없는 인자: $1" >&2; exit 2 ;;
@@ -64,7 +64,7 @@ CGID=$(stat -c %i "/sys/fs/cgroup${CG}" 2>/dev/null || echo 0)
     echo "lsm      $(cat /sys/kernel/security/lsm)"
     echo "cpu      $(nproc) x $(awk -F: '/model name/{print $2; exit}' /proc/cpuinfo | xargs)"
     echo "cgroup   $CG (id=$CGID)"
-    echo "runs     $RUNS (warmup $WARMUP)"
+    echo "runs     $RUNS x $PASSES 패스 (warmup $WARMUP)"
     echo "date     $(date -Is)"
 } | tee "$OUT/env.txt"
 echo
@@ -94,32 +94,46 @@ gate_start() {
 }
 
 # ── 1단계: 매크로 (워크로드 벽시계) ─────────────────────────────────
-echo "── 매크로: 워크로드 벽시계 ──────────────────────────────────"
+# 티어를 A블록→B블록→C블록→D블록 으로 몰아 돌리면 안 된다.
+# 재려는 효과가 1~3% 인데, 그 시간 동안의 드리프트(페이지 캐시·써멀·주파수)가
+# 통째로 티어에 얹힌다 — A 가 항상 첫 블록이라 A 만 편차가 커진다.
+# 패스를 나눠 A,B,C,D 를 여러 번 교차시키고 report.py 가 합친다.
+echo "── 매크로: 워크로드 벽시계 ($PASSES 패스 x $RUNS 회 교차) ────"
 IFS=, read -ra WLS <<< "$WORKLOADS"
-for tier in a b c d; do
-    if [[ $tier != a ]]; then
-        gate_start "gate_${tier}.bpf.o" "$OUT/gate_${tier}.json" "$OUT/gate_${tier}.log"
-    fi
-    for wl in "${WLS[@]}"; do
-        [[ -x workloads/$wl.sh ]] || die "워크로드 없음: workloads/$wl.sh"
-        echo "  [$tier] $wl"
-        hyperfine --style basic --warmup "$WARMUP" --runs "$RUNS" \
-                  --export-json "$OUT/macro_${tier}_${wl}.json" \
-                  "workloads/$wl.sh" >/dev/null
+for wl in "${WLS[@]}"; do
+    [[ -x workloads/$wl.sh ]] || die "워크로드 없음: workloads/$wl.sh"
+done
+
+for p in $(seq 1 "$PASSES"); do
+    for tier in a b c d; do
+        if [[ $tier != a ]]; then
+            gate_start "gate_${tier}.bpf.o" "$OUT/gate_${tier}_p${p}.json" "$OUT/gate_${tier}_p${p}.log"
+        fi
+        for wl in "${WLS[@]}"; do
+            echo "  패스 $p [$tier] $wl"
+            hyperfine --style basic --warmup "$WARMUP" --runs "$RUNS" \
+                      --export-json "$OUT/macro_${tier}_${wl}_p${p}.json" \
+                      "workloads/$wl.sh" >/dev/null
+        done
+        gate_stop
     done
-    gate_stop
 done
 
 # ── 2단계: 마이크로 (훅 1회당 지연 분포 + dev major) ────────────────
 # PROBE 빌드는 훅마다 bpf_ktime_get_ns() 를 두 번 부른다. 그 비용이 티어 B 가
 # 내는 비용과 자릿수가 비슷하므로, 여기 숫자를 매크로 % 로 환산하지 말 것.
+# 워크로드마다 따로 잰다 — dev major 분포는 워크로드의 성질이지 훅의 성질이
+# 아니다. w_build 하나만 재고 "major 259 가 98.9%" 라고 쓰면 거짓말이 된다.
 echo
-echo "── 마이크로: 훅 지연 분포 · dev major ($MICRO_WL) ───────────"
+echo "── 마이크로: 훅 지연 분포 · dev major ─────────────────────"
 for tier in b c d; do
-    echo "  [$tier] $MICRO_WL"
-    gate_start "gate_${tier}_probe.bpf.o" "$OUT/probe_${tier}.json" "$OUT/probe_${tier}.log"
-    "workloads/$MICRO_WL.sh" >/dev/null 2>&1 || true
-    gate_stop
+    for wl in "${WLS[@]}"; do
+        echo "  [$tier] $wl"
+        gate_start "gate_${tier}_probe.bpf.o" "$OUT/probe_${tier}_${wl}.json" \
+                   "$OUT/probe_${tier}_${wl}.log"
+        "workloads/$wl.sh" >/dev/null 2>&1 || true
+        gate_stop
+    done
 done
 
 echo
