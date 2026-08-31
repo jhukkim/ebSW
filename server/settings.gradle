@@ -1,1 +1,10 @@
+// Java 25 toolchain 을 어디서 구할지 Gradle 에게 알려준다.
+// 없으면 JDK 25 가 설치되지 않은 기계에서
+//   "No matching toolchains found for requested specification: {languageVersion=25}"
+// 로 빌드가 시작조차 못 한다. 맥북(편집)과 서브 PC(빌드)의 JDK 를 손으로
+// 맞추지 않기 위한 장치다 — Spring Initializr 도 이걸 기본으로 넣는다.
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'warrant-server'

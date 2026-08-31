@@ -11,7 +11,14 @@
 #   A  훅 없음                          기준선
 #   B  return 0 만                      LSM 훅 부착 자체의 비용
 #   C  + f_mode & FMODE_WRITE 앞문      S0 실측 95% 가 여기서 끝난다
+#   E  D 와 같은 프로그램, 영장 없음      조회 1회로 빠져나가는가
 #   D  + cgroup 조회 · 맵 2회 · 시간 비교  나머지 5% 가 내는 비용
+#
+# E 는 새 프로그램이 아니라 gate_d 를 태그 없이 돌린 것이다. 프로그램이
+# 같아야 "영장 유무" 하나만 분리된다. 기술스택 문서 §검증하네스가 요구하는
+# 비교군 셋(훅 없음 / 훅 있고 영장 없음 / 훅 있고 영장 있음)이 A · E · D 다.
+# §13 의 "영장 없는 프로세스는 조회 한 번으로 빠져나간다"가 참인지가
+# E 와 D 의 차이에서 판가름 난다.
 #
 # 두 종류의 숫자를 뽑는다:
 #   매크로  워크로드 벽시계. A 대비 몇 % 인가. 계측 없는 빌드로 잰다
@@ -69,6 +76,11 @@ CGID=$(stat -c %i "/sys/fs/cgroup${CG}" 2>/dev/null || echo 0)
 } | tee "$OUT/env.txt"
 echo
 
+# 티어 → 오브젝트 접미사. E 는 D 와 같은 프로그램을 쓴다.
+tier_obj() { case $1 in e) echo d ;; *) echo "$1" ;; esac; }
+# 티어 → 심을 cgroup id. E 만 0(=태그 없음).
+tier_tag() { case $1 in e) echo 0 ;; *) echo "$CGID" ;; esac; }
+
 GATE_PID=""
 gate_stop() {
     [[ -n $GATE_PID ]] || return 0
@@ -81,8 +93,8 @@ trap 'gate_stop' EXIT
 # gate 를 띄우고 READY 가 나올 때까지 기다린다.
 # 이걸 안 기다리면 훅이 안 붙은 구간이 첫 워크로드에 섞인다.
 gate_start() {
-    local obj=$1 statsfile=$2 log=$3
-    ./gate --obj "$obj" --tag-cgroup "$CGID" --out "$statsfile" >"$log" 2>&1 &
+    local obj=$1 statsfile=$2 log=$3 tag=${4:-$CGID}
+    ./gate --obj "$obj" --tag-cgroup "$tag" --out "$statsfile" >"$log" 2>&1 &
     GATE_PID=$!
     for _ in $(seq 100); do
         grep -q '^READY' "$log" 2>/dev/null && return 0
@@ -98,16 +110,18 @@ gate_start() {
 # 재려는 효과가 1~3% 인데, 그 시간 동안의 드리프트(페이지 캐시·써멀·주파수)가
 # 통째로 티어에 얹힌다 — A 가 항상 첫 블록이라 A 만 편차가 커진다.
 # 패스를 나눠 A,B,C,D 를 여러 번 교차시키고 report.py 가 합친다.
-echo "── 매크로: 워크로드 벽시계 ($PASSES 패스 x $RUNS 회 교차) ────"
+echo "── 매크로: 워크로드 벽시계 ($PASSES 패스 x $RUNS 회, A·B·C·E·D 교차) ──"
 IFS=, read -ra WLS <<< "$WORKLOADS"
 for wl in "${WLS[@]}"; do
     [[ -x workloads/$wl.sh ]] || die "워크로드 없음: workloads/$wl.sh"
 done
 
 for p in $(seq 1 "$PASSES"); do
-    for tier in a b c d; do
+    for tier in a b c e d; do
         if [[ $tier != a ]]; then
-            gate_start "gate_${tier}.bpf.o" "$OUT/gate_${tier}_p${p}.json" "$OUT/gate_${tier}_p${p}.log"
+            gate_start "gate_$(tier_obj "$tier").bpf.o" \
+                       "$OUT/gate_${tier}_p${p}.json" "$OUT/gate_${tier}_p${p}.log" \
+                       "$(tier_tag "$tier")"
         fi
         for wl in "${WLS[@]}"; do
             echo "  패스 $p [$tier] $wl"
@@ -126,11 +140,11 @@ done
 # 아니다. w_build 하나만 재고 "major 259 가 98.9%" 라고 쓰면 거짓말이 된다.
 echo
 echo "── 마이크로: 훅 지연 분포 · dev major ─────────────────────"
-for tier in b c d; do
+for tier in b c e d; do
     for wl in "${WLS[@]}"; do
         echo "  [$tier] $wl"
-        gate_start "gate_${tier}_probe.bpf.o" "$OUT/probe_${tier}_${wl}.json" \
-                   "$OUT/probe_${tier}_${wl}.log"
+        gate_start "gate_$(tier_obj "$tier")_probe.bpf.o" "$OUT/probe_${tier}_${wl}.json" \
+                   "$OUT/probe_${tier}_${wl}.log" "$(tier_tag "$tier")"
         "workloads/$wl.sh" >/dev/null 2>&1 || true
         gate_stop
     done

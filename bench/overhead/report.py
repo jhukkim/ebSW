@@ -15,11 +15,15 @@ import sys
 from collections import defaultdict
 from glob import glob
 
-TIERS = ["a", "b", "c", "d"]
+# 표시 순서. E 는 D 와 같은 프로그램을 태그 없이 돌린 것이라 D 앞에 놓는다 —
+# 기술스택 문서 §검증하네스의 비교군 셋이 A · E · D 다.
+TIERS = ["a", "b", "c", "e", "d"]
+MICRO_TIERS = ["b", "c", "e", "d"]
 TIER_DESC = {
     "a": "훅 없음",
     "b": "return 0 만",
     "c": "+ FMODE_WRITE 앞문",
+    "e": "D 와 같음, 영장 없음",
     "d": "+ cgroup·맵2회·시간",
 }
 PASS_RE = re.compile(r"_p\d+$")
@@ -75,6 +79,18 @@ def macro_table(d):
                 dms, sig = "     — ", ""
             print(f"    {tier.upper():<4} {TIER_DESC[tier]:<22} "
                   f"{m:8.3f}s {sd:6.3f}s {pct(v, 0.95):8.3f}s {dms:>8} {sig:>12}")
+
+        # §13 의 핵심 주장: "영장 없는 프로세스는 조회 한 번으로 빠져나간다".
+        # E 와 D 는 같은 프로그램이므로 차이는 영장 유무 하나뿐이다.
+        e, dd = t.get("e"), t.get("d")
+        if e and dd:
+            em, dm2 = st.mean(e), st.mean(dd)
+            ese = math.hypot(st.stdev(e) / math.sqrt(len(e)) if len(e) > 1 else 0,
+                             st.stdev(dd) / math.sqrt(len(dd)) if len(dd) > 1 else 0)
+            rel = (dm2 / em - 1) * 100
+            mark = "노이즈 이하" if abs(dm2 - em) < 2 * ese else f"±{2*ese/em*100:.1f}% 초과"
+            print(f"    {'':4} {'└ E→D (영장 유무)':<22} "
+                  f"{'':8} {'':6} {'':8}  {rel:+7.1f}% {mark:>12}")
         print()
     print("  '노이즈 이하' 는 오버헤드가 0 이라는 뜻이 아니라 이 표본으로는")
     print("  분해되지 않는다는 뜻이다. 상한으로만 읽고, 필요하면 --passes 를 늘린다.")
@@ -105,7 +121,7 @@ def micro_table(d):
         print(f"  {wl}")
         print(f"    {'':4} {'호출':>10} {'초당':>9} {'쓰기':>13} {'p50':>9} "
               f"{'p90':>9} {'p99':>10} {'p99.9':>11}")
-        for tier in ("b", "c", "d"):
+        for tier in MICRO_TIERS:
             f = probes.get(tier, {}).get(wl)
             if not f:
                 continue
@@ -136,15 +152,19 @@ def micro_table(d):
             print(f"    {tier.upper():<4} {opens:>10,} {opens/secs:>8,.0f} "
                   f"{w:>6,} ({w/tot*100:4.1f}%) {q(.50):>9} {q(.90):>9} "
                   f"{q(.99):>10} {q(.999):>11}")
-        # 태그 조회가 실제로 히트했는지. 0 이면 그 실행의 D 는 버린다.
-        f = probes.get("d", {}).get(wl)
-        if f:
+        # 태그 조회가 실제로 히트했는지. D 에서 0 이면 그 실행은 버린다.
+        for tier in ("e", "d"):
+            f = probes.get(tier, {}).get(wl)
+            if not f:
+                continue
             c = json.load(open(f))["counters"]
-            print(f"      D 판정: tag_hit={c.get('tag_hit',0):,} "
+            print(f"      {tier.upper()} 판정: tag_hit={c.get('tag_hit',0):,} "
                   f"tag_miss={c.get('tag_miss',0):,} "
                   f"read={c.get('read',0):,} expired={c.get('expired',0):,}")
-            if not c.get("tag_hit"):
+            if tier == "d" and not c.get("tag_hit"):
                 print("      경고: tag_hit=0 — 태그가 안 심겼다. 이 D 숫자는 버릴 것")
+            if tier == "e" and c.get("tag_hit"):
+                print("      경고: E 인데 tag_hit>0 — 태그가 남아 있다. E·D 비교 무효")
         print()
 
 
@@ -182,10 +202,14 @@ def main():
     macro_table(d)
     micro_table(d)
     dev_table(d)
-    print("판정: 매크로 Δ 가 한 자릿수 % 여야 한다.")
+    print("판정 1: 매크로 Δ 가 한 자릿수 % 여야 한다.")
     print("      두 자릿수면 쓰기 통제를 inode_* 5종만으로 재설계한다 (CLAUDE.md S1).")
-    print("      전부 '노이즈 이하' 면 통과가 아니라 미측정이다 — --passes 를 늘려")
-    print("      상한을 좁히고, 그 상한을 결론으로 적는다.")
+    print("        전부 '노이즈 이하' 면 통과가 아니라 미측정이다 — --passes 를 늘려")
+    print("        상한을 좁히고, 그 상한을 결론으로 적는다.")
+    print("판정 2: E→D 차이 = 영장 하나를 조회하는 값. §13 의 '영장 없는 프로세스는")
+    print("        조회 한 번으로 빠져나간다'가 참이면 E 는 C 에 가깝고 D 만 더 낸다.")
+    print("        E 가 D 만큼 비싸면 그 주장은 거짓이고, 무영장 세션이 많은")
+    print("        현실 서버에서 오버헤드 추정이 통째로 틀어진다.")
 
 
 if __name__ == "__main__":
