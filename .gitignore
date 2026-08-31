@@ -18,6 +18,11 @@ bpf/vmlinux.h
 
 # 스파이크 산출 바이너리
 bpf/smoke
+
+# ── bench ──────────────────────────────────────────────────────────
+bench/overhead/gate
+bench/overhead/out/
+bench/overhead/fixtures/
 bench/overhead/*.out
 
 # ── Java / Gradle ──────────────────────────────────────────────────
