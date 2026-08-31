@@ -17,7 +17,7 @@ SSH 세션에 범위·유효기간을 가진 **영장(warrant)** 을 붙이고, 
 |---|---|
 | `bpf/` | `smoke.bpf.c` + 로더 — **동작 확인됨**. 제품 코드는 아직 없다 |
 | `deploy/` | `bootstrap.sh` · `enable-bpf-lsm.sh` — 동작 |
-| `server/` | Java 클래스 골격 52개 (시그니처 + 의사코드 주석, 본문 미구현). 빌드 미확인 |
+| `server/` | Java 클래스 골격 52개 (시그니처 + 의사코드 주석, 본문 미구현). **빌드·의존성 해결 확인됨** — `bootJar` 까지 통과 |
 | `proto/` `agent/` `pam/` `web/` `bench/` | 디렉터리 + `README.md` 만. 코드 없음 |
 
 각 디렉터리의 `README.md` 에 그 계층이 지켜야 할 제약이 적혀 있다. 작업 전에 해당 README를 먼저 읽을 것.
@@ -57,6 +57,21 @@ SSH 세션에 범위·유효기간을 가진 **영장(warrant)** 을 붙이고, 
 | 대시보드 | TypeScript | React 19 · Vite — 또는 Grafana로 대체 |
 
 중앙 서버는 Spring Web MVC + 가상 스레드(WebFlux 불필요) · Testcontainers + JUnit 5 · Ed25519는 JDK 내장.
+
+**`server/` 빌드는 2026-09-01 에 실증됐다.** 52클래스가 Java 25(class major 69)로
+컴파일되고 `bootJar` 가 나온다. 고정한 버전이 실제 산출물과 일치한다 —
+protobuf-java 4.35.1 · grpc 1.83.1 · spring-webmvc 7.0.9 · flyway 12.4.0 ·
+spring-security-oauth2 7.1.1 · hibernate 7.4.5. **Boot 버전을 올릴 때 이 목록을
+다시 확인할 것** (`build.gradle` 의 `ext` 두 줄이 BOM 과 어긋나면 조용히 깨진다).
+
+`settings.gradle` 의 **foojay toolchain 리졸버를 지우지 말 것.** 없으면 JDK 25 가
+설치되지 않은 기계에서 `No matching toolchains found` 로 빌드가 시작조차 못 한다.
+맥북(편집)과 서브 PC(빌드)의 JDK 를 손으로 맞추지 않기 위한 장치다.
+
+테스트는 아직 0개다. Gradle 9 는 그걸 빌드 실패로 다루므로
+`failOnNoDiscoveredTests = false` 로 꺼 뒀다 — `WarrantServerApplicationTests` 주석에
+적힌 케이스 8개가 채워지는 순간 그 줄을 지운다. 가짜 통과 테스트로 초록을
+만들지 말 것.
 
 **Spring Boot 4는 스타터 이름이 Boot 3과 다르다.** `spring-boot-starter-web` → `-webmvc`, oauth2 스타터 → `spring-boot-starter-security-oauth2-*`, Flyway는 전용 스타터, gRPC는 Boot가 spring-grpc를 흡수해 `spring-boot-starter-grpc-server`가 됐다 (`org.springframework.grpc` 스타터는 1.0.3에서 멈췄으니 그 BOM을 import하지 말 것). Boot 3 예제를 그대로 옮기면 "Could not find ..."로 실패한다.
 
