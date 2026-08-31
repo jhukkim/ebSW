@@ -21,9 +21,13 @@ bpf/smoke
 
 # ── bench ──────────────────────────────────────────────────────────
 bench/overhead/gate
-bench/overhead/out/
 bench/overhead/fixtures/
 bench/overhead/*.out
+
+# out/ 는 커밋한다 — 측정값은 던져버리는 스파이크 코드가 아니라 산출물이다.
+# 서브 PC 에서 재고 맥북에서 읽는 유일한 통로이기도 하다.
+# 다만 로더 로그는 재현에 필요 없다.
+bench/overhead/out/**/*.log
 
 # ── Java / Gradle ──────────────────────────────────────────────────
 build/

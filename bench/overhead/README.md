@@ -92,6 +92,37 @@ S0 숫자(유휴 초당 5~15건)는 **유휴 노트북 것**이라 그대로 쓰
 `/proc/sys/kernel/*` 쓰기와 `/sys/fs/cgroup` 조작이 정확히 통제 대상이다 (§15).
 표를 남기는 건 "왜 안 걸렀나"를 나중에 설명하기 위해서다.
 
+## 결과를 맥북으로 가져가기
+
+측정값은 **커밋한다.** `out/` 은 `.gitignore` 에서 열어놨다 (로더 로그 `*.log` 만 제외).
+스파이크 코드는 던져버려도 숫자는 남는다 — 재설계 판단의 근거이고,
+훅을 하나씩 붙일 때마다 이 숫자와 비교하게 된다.
+
+서브 PC 에서:
+
+```sh
+sudo ./run.sh                      # 끝나면 결과 소유권을 되돌려준다
+git add bench/overhead/out && git commit -m "S1 실측: $(uname -r)" && git push
+```
+
+맥북에서:
+
+```sh
+git pull
+cat bench/overhead/out/*/report.txt
+```
+
+`report.txt` 하나만 봐도 판정은 된다. JSON 은 나중에 다시 그리거나
+다른 커널의 결과와 나란히 놓을 때 쓴다 — **커널 7.0(Ubuntu 26.04)·Rocky 9
+검증 때 지금 숫자와 비교해야 하므로 원본을 버리지 않는다.**
+
+한 번만 급하게 볼 거면 `scp` 도 된다. 다만 그렇게 가져온 숫자는
+기록에 남지 않으므로, 판정에 쓸 실행은 커밋할 것.
+
+```sh
+scp -r <서브PC>:~/SessionWarrant/bench/overhead/out/<타임스탬프> /tmp/
+```
+
 ## 던져버리는 것과 남기는 것
 
 `gate.bpf.c` · `gate.c` 는 스파이크다. 제품의 `warrantd` 는 cilium/ebpf + bpf2go 로 간다.

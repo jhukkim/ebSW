@@ -124,5 +124,13 @@ done
 
 echo
 python3 report.py "$OUT" | tee "$OUT/report.txt"
+# sudo 로 돌았으니 결과가 root 소유다. 그대로 두면 맥북으로 보내려고
+# git add 할 때 걸린다.
+# (set -e 아래에서 [[ ]] && cmd 는 조건이 거짓일 때 스크립트를 죽인다)
+if [[ -n ${SUDO_USER:-} ]]; then chown -R "$SUDO_USER" "$OUT"; fi
+
 echo
 echo "결과: $OUT"
+echo
+echo "맥북으로 가져가기 (out/ 은 커밋 대상이다):"
+echo "  git add $OUT && git commit -m \"S1 실측: $(uname -r)\" && git push"
