@@ -33,6 +33,8 @@ bench/overhead/out/**/*.log
 # ── Java / Gradle ──────────────────────────────────────────────────
 build/
 .gradle/
+# IDE 의 Java 확장(Eclipse · VS Code)이 만드는 .class 출력. Gradle 의 build/ 와 별개다.
+server/bin/
 
 # ── Go ─────────────────────────────────────────────────────────────
 agent/warrantd
