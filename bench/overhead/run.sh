@@ -117,7 +117,12 @@ for wl in "${WLS[@]}"; do
 done
 
 for p in $(seq 1 "$PASSES"); do
-    for tier in a b c e d; do
+    # 패스마다 티어 순서를 섞는다. 1차에서는 블록으로 몰아 돌려 드리프트가
+    # 티어에 얹혔고, 2차에서는 고정 순서(a b c d)가 기계의 주기적 상태 변화와
+    # 정렬돼 A·C 만 느려지는 결과가 나왔다 — B 가 A 보다 35% 빠르게 찍혔다.
+    # 훅은 기계를 빠르게 만들 수 없으므로 그건 전부 인공물이다.
+    # 순서를 매 패스 섞으면 어떤 주기도 특정 티어에 붙지 못한다.
+    for tier in $(shuf -e a b c e d); do
         if [[ $tier != a ]]; then
             gate_start "gate_$(tier_obj "$tier").bpf.o" \
                        "$OUT/gate_${tier}_p${p}.json" "$OUT/gate_${tier}_p${p}.log" \

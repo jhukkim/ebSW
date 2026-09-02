@@ -60,7 +60,30 @@ def macro_table(d):
         t = data[wl]
         base = t.get("a")
         n = len(base) if base else 0
+
+        # 훅은 기계를 빠르게 만들 수 없다. 어떤 티어가 A 보다 유의하게
+        # 빠르면 그 슬롯 동안 기계 상태가 변한 것이고, 그 워크로드의 Δ 는
+        # 전부 인공물이다. 조용히 "-35.6%" 를 찍게 두면 안 된다.
+        bogus = []
+        if base:
+            bm = st.mean(base)
+            bse = st.stdev(base) / math.sqrt(len(base)) if len(base) > 1 else 0
+            for tier in TIERS[1:]:
+                v = t.get(tier)
+                if not v:
+                    continue
+                m = st.mean(v)
+                se = math.hypot(bse, st.stdev(v) / math.sqrt(len(v)) if len(v) > 1 else 0)
+                if bm - m > 2 * se:
+                    bogus.append((tier.upper(), (m / bm - 1) * 100))
+
         print(f"  {wl}   (n={n})")
+        if bogus:
+            print("    ⚠ 측정 무효 — 훅이 기준선보다 빠르게 나왔다: "
+                  + ", ".join(f"{k} {d:+.1f}%" for k, d in bogus))
+            print("      훅은 기계를 빠르게 만들 수 없다. 그 슬롯 동안 기계 상태가")
+            print("      변한 것이고(터보 예산·써멀·writeback), 아래 Δ 는 전부 인공물이다.")
+            print("      런별 값을 열어 슬롯 안에서 튀는 지점을 찾을 것.")
         print(f"    {'':4} {'설명':<22} {'mean':>9} {'sd':>7} {'p95':>9} "
               f"{'Δmean':>8} {'판정':>12}")
         for tier in TIERS:
@@ -202,6 +225,7 @@ def main():
     macro_table(d)
     micro_table(d)
     dev_table(d)
+    print("판정 0: '측정 무효' 가 붙은 워크로드는 판정에 쓰지 않는다.")
     print("판정 1: 매크로 Δ 가 한 자릿수 % 여야 한다.")
     print("      두 자릿수면 쓰기 통제를 inode_* 5종만으로 재설계한다 (CLAUDE.md S1).")
     print("        전부 '노이즈 이하' 면 통과가 아니라 미측정이다 — --passes 를 늘려")
