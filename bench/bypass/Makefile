@@ -4,6 +4,7 @@
 #   sudo make test    bats 전체 (§04 표 + §18 구멍)
 #   make check
 
+SHELL   := /bin/bash
 BPFDIR  := ../../bpf
 CLANG   ?= $(shell command -v clang-19 || command -v clang-18 || command -v clang)
 BPFTOOL ?= $(shell command -v bpftool || echo /usr/lib/linux-tools/$(shell uname -r)/bpftool)
@@ -38,9 +39,25 @@ tagprobe: tagprobe.c
 	$(Q)$(CC) $(HOST_CFLAGS) tagprobe.c -o $@ $(HOST_LDLIBS)
 
 # bats 는 root 로 돌아야 한다 — BPF LSM 부착과 su/sudo 케이스 때문이다.
+#
+# 결과는 out/ 에 남기고 커밋한다. bench/overhead 와 같은 이유다 —
+# "§04 표가 이 커널에서 참이었다"는 심사 자료이고, 검증 대상 커널
+# (7.0 · Rocky 9)에서 다시 돌릴 때 지금 결과와 나란히 놓아야 한다.
 test: all
 	@test "$$(id -u)" = 0 || { echo "ERROR: sudo make test"; exit 1; }
-	bats *.bats
+	@mkdir -p out
+	@set -o pipefail; ts=$$(date +%Y%m%d-%H%M%S); f=out/$$ts.txt;              \
+	 { echo "kernel   $$(uname -r)";                                           \
+	   echo "lsm      $$(cat /sys/kernel/security/lsm)";                       \
+	   echo "systemd  $$(systemctl --version | head -1)";                      \
+	   echo "docker   $$(command -v docker >/dev/null && docker --version      \
+	                     || echo 없음)";                                       \
+	   echo "date     $$(date -Is)"; echo; } > $$f;                            \
+	 bats *.bats 2>&1 | tee -a $$f; rc=$$?;                                    \
+	 if [ -n "$$SUDO_USER" ]; then chown -R "$$SUDO_USER" out; fi;             \
+	 echo; echo "결과: $$f";                                                    \
+	 echo "커밋: git add bench/bypass/out && git commit -m \"S2 실측: $$(uname -r)\""; \
+	 exit $$rc
 
 check:
 	@echo "CLANG   = $(CLANG)"
