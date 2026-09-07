@@ -48,3 +48,6 @@ web/dist/
 .idea/
 .vscode/
 .DS_Store
+
+# ── S3 (bench/pamtiming) ───────────────────────────────────────────
+bench/pamtiming/*.so

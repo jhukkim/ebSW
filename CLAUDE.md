@@ -49,6 +49,7 @@ BPF LSM이 붙고 돌고, 쓰기 포화 조건에서 오버헤드가 **1% 미만
 | `server/` | Java 클래스 골격 52개 (시그니처 + 의사코드 주석, 본문 미구현). **빌드·의존성 해결 확인됨** — `bootJar` 까지 통과 |
 | `bench/overhead/` | S1 하네스 — 3차 실행 완료(티어 E 포함). **최악 조건 1% 미만 — S1 통과** |
 | `bench/bypass/` | S2 §04 표 = bats 13케이스 + §18 4구멍(skip). **8 통과 · 0 실패**. 출력 파일 미커밋 |
+| `bench/pamtiming/` | S3 하네스 — PAM 프로브 + 3단계 삽입 절차. **아직 안 돌렸다** |
 | `web/` | 감사 4화면(개요·검색·세션 타임라인·무영장). React 19 + shadcn, **빌드 확인됨**. 목 데이터 |
 | `proto/` `agent/` `pam/` | 디렉터리 + `README.md` 만. 코드 없음 |
 
@@ -211,7 +212,7 @@ pam/      C · pam_warrant.so (200줄 이내로 유지)
 server/   Java · Spring Boot  ← 골격 있음
 web/      대시보드 (Grafana 대체 가능)
 deploy/   bootstrap.sh · enable-bpf-lsm.sh · systemd/ · ansible/
-bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실측)
+bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실측) · pamtiming/(PAM 타이밍)
 ```
 
 ## 작업 규칙
@@ -222,7 +223,7 @@ bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실�
 - **훅은 한 번에 하나씩 붙인다.** 순서: `sched_process_fork` → `bprm_check_security` → `socket_connect` → `file_open` → `inode_{create,unlink,rename,link,symlink}`(5개 한 세트) → 자기보호 6종 → `socket_sendmsg` → `kprobe/security_*` 미러. 훅 하나마다 verifier 통과와 오버헤드를 같이 확인한다.
 - **자기 보호 6종은 정책이 아니라 제품이 강제 삽입하는 기본 규칙이다** (`lsm/bpf`, `task_kill`, `sb_umount`, `ptrace_access_check`, `kernel_module_request`, warrantd 자기 파일 쓰기 금지). 영장 작성자가 실수로 열 수 없어야 하고, 하나라도 빠지면 나머지가 무의미하다 (§16).
 - **BPF 프로그램과 맵은 bpffs에 pin한다.** warrantd 재시작 중에도 태깅 공백이 생기면 안 된다. systemd 유닛에 `Before=sshd.service` 는 필수다 — 없으면 부팅 직후 세션이 태그 없이 시작된다.
-- **PAM 스택에서 `pam_warrant.so` 는 `pam_systemd.so` 뒤에 온다.** 그 전에는 `session-N.scope` 가 아직 없다. `/etc/pam.d/sshd` 를 건드리는 작업은 **물리 콘솔 접근이 가능한 상태에서만** 한다.
+- **PAM 스택에서 `pam_warrant.so` 는 `pam_systemd.so` 뒤에 온다.** 그 전에는 `session-N.scope` 가 아직 없다 — **이건 아직 가정이고 S3 이 그걸 잰다.** `/etc/pam.d/sshd` 를 건드리는 작업은 **물리 콘솔 접근이 가능한 상태에서만** 하고, `bench/pamtiming` 의 3단계(pamtester → su → sshd)를 건너뛰지 않는다.
 - **서명은 protobuf 직렬화 바이트에 한다.** JSON 서명은 키 순서·공백 정규화 문제를 만든다. Ed25519는 JDK 내장을 쓴다(BouncyCastle 불필요).
 - **`bench/` 는 초기 구조에 넣는다.** §04의 우회 경로 표가 그대로 bats 테스트 케이스다. §18이 인정한 4가지 구멍(만료 전 열어둔 fd, connect 없는 UDP, 데몬 위임, `kubectl exec`)도 **skip 사유를 명시해 실패 테스트로 커밋**한다 — "알고 있으나 막지 못한다"와 "모른다"는 다르게 취급된다.
 - **감사 기록은 절제한다.** 차단은 전건 기록, 허용은 `exec`·`connect` 처럼 빈도 낮은 것만. 쓰기 허용까지 다 남기면 ringbuf가 넘친다. 유실 구간은 반드시 명시적으로 기록해 "빈 구간"을 숨기지 않는다 (§13, §14).
@@ -247,7 +248,7 @@ bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실�
 | **S0** ✅ | 환경 — `bootstrap.sh` · `enable-bpf-lsm.sh` · `bpf/smoke` | attach·동작 확인 | — |
 | **S1** ✅ | **`file_open` 오버헤드** — 5티어 비교, p99까지 | 한 자릿수 % | — (통과, **1% 미만**) |
 | S2 ✅ | 태그 두 겹 — cgroup + fork 전파, §04 표 = bats | 앞 3줄(6건) 초록, 뒤 4줄 '끊김'이 확인됨 | — (통과) |
-| **S3** ← 다음 | PAM 타이밍 — 로그만 찍는 20줄 모듈 | scope가 이미 존재 | warrantd가 cgroup 트리 순회 (태깅 공백 측정) |
+| **S3** ← 다음 | PAM 타이밍 — `bench/pamtiming` (하네스 완성, 미실행) | `present_t0` 전건 yes | warrantd가 cgroup 트리 순회 · logind D-Bus 구독 (태깅 공백 측정) |
 | S4 | inode 안정성 — upgrade · `vim` 저장 · logrotate | 재컴파일 지점 목록화 | fanotify 범위 확대 |
 
 ### S1은 3단이 아니라 4단이다
