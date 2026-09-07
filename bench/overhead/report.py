@@ -4,7 +4,8 @@
   python3 report.py out/20260901-000107
 
 매크로는 A 대비 %, 마이크로는 훅 1회당 ns 분포다.
-두 숫자를 곱하거나 환산하지 말 것 — PROBE 빌드는 계측 비용을 포함한다.
+마이크로 절대값을 그대로 % 로 쓰지 말 것 — PROBE 빌드는 계측 비용을 포함한다.
+B 를 차감한 뒤 호출수를 곱하는 것이 '검산' 절이고, 결론은 거기서 읽는다.
 """
 import json
 import math
@@ -191,6 +192,99 @@ def micro_table(d):
         print()
 
 
+def hook_ns(path):
+    """log2 히스토그램에서 훅 1회 평균 ns 를 근사한다.
+
+    버킷 [2^b, 2^(b+1)) 의 대푯값으로 1.5*2^b 를 쓴다. 버킷 폭이 배수라
+    산술 중앙값보다 이쪽이 편향이 작다. 절대값이 아니라 티어 간 차이만
+    쓰이므로 근사로 충분하다."""
+    with open(path) as fh:
+        j = json.load(fh)
+    hist = {int(k): v for k, v in j["lat_log2_ns"].items()}
+    n = sum(hist.values())
+    if not n:
+        return None, 0
+    mean = sum(v * 1.5 * (1 << b) for b, v in hist.items()) / n
+    return mean, j["counters"].get("total", n) or n
+
+
+def crosscheck(d):
+    """마이크로로 계산한 예상 Δ 와 매크로 실측 Δ 를 대조한다.
+
+    훅이 커널 안에서 쓴 시간은 마이크로가 직접 잰다. 거기에 호출수를 곱하면
+    그 워크로드가 느려질 수 있는 최대치가 나온다 — 훅은 그보다 더 느리게
+    만들 수 없다. 매크로가 그 몇 배를 보고하면 그건 훅이 아니라 기계다.
+
+    2차 실행에서 w_untar D 를 +2.0% 로 보고했는데, 그건 1회당 539ns 에
+    해당한다. 커널 안 실측은 77ns 였다 — 7배 어긋난 값을 사람이 눈으로
+    잡아내야 했다. 그 대조를 여기서 자동으로 한다."""
+    probes = _probe_files(d)
+    macro = load_macro(d)
+    if not probes or not macro:
+        return
+    print("── 검산: 마이크로 → 매크로 ─────────────────────────────────")
+    print()
+    print("  예상 Δ = (훅 1회당 판정 비용 × 호출수) / 기준선 시간.")
+    print("  훅 1회당 비용은 B(계측 비용) 를 차감한 값이다 — PROBE 빌드가")
+    print("  ktime 을 두 번 부르므로 B 의 절대값은 훅이 아니라 계측이다.")
+    print("  LSM 부착 비용은 마이크로가 볼 수 없으므로 예상 Δ 는 하한이다.")
+    print()
+    for wl in sorted(macro):
+        base = macro[wl].get("a")
+        bref, _ = (hook_ns(probes["b"][wl]) if probes.get("b", {}).get(wl)
+                   else (None, 0))
+        if not base or bref is None:
+            continue
+        base_ns = st.mean(base) * 1e9
+        # 매크로 노이즈 바닥. 이보다 작은 효과는 이 표본으로 못 잡는다.
+        bsd = st.stdev(base) if len(base) > 1 else 0.0
+        floor = 2 * (bsd / math.sqrt(len(base))) / st.mean(base) * 100
+
+        print(f"  {wl}   (매크로 노이즈 바닥 ±{floor:.2f}%)")
+        print(f"    {'':4} {'1회 net':>9} {'호출':>10} {'총비용':>9} "
+              f"{'예상Δ':>8} {'실측Δ':>8} {'배':>6}  판정")
+        for tier in ("c", "e", "d"):
+            f = probes.get(tier, {}).get(wl)
+            v = macro[wl].get(tier)
+            if not f or not v:
+                continue
+            m, opens = hook_ns(f)
+            if m is None:
+                continue
+            net = m - bref
+            cost_ms = opens * net / 1e6
+            exp = opens * net / base_ns * 100
+            got = (st.mean(v) / st.mean(base) - 1) * 100
+            ratio = abs(got) / exp if exp > 0.001 else float("inf")
+            # 훅이 낼 수 있는 값의 3배를 넘으면 그건 훅이 아니다.
+            # (배수를 3 으로 둔 건 LSM 부착 비용과 버킷 근사 오차를 넉넉히
+            #  덮기 위해서다. 2 차의 7배는 이 문턱을 크게 넘는다.)
+            if abs(got) < floor:
+                verdict = "노이즈 이하"
+            elif ratio > 3:
+                verdict = "⚠ 훅이 낼 수 없는 값"
+            else:
+                verdict = "설명됨"
+            rs = f"{ratio:5.1f}x" if ratio != float("inf") else "    —"
+            print(f"    {tier.upper():<4} {net:8.0f}n {opens:>10,} "
+                  f"{cost_ms:8.3f}m {exp:+7.2f}% {got:+7.1f}% {rs:>6}  {verdict}")
+        if floor > 0:
+            worst = max((hook_ns(probes[t][wl])[0] - bref) * hook_ns(probes[t][wl])[1]
+                        / base_ns * 100
+                        for t in ("c", "e", "d") if probes.get(t, {}).get(wl))
+            if worst < floor:
+                print(f"    → 예상 Δ 최대 {worst:.2f}% 가 노이즈 바닥 {floor:.2f}% "
+                      f"아래다. 이 워크로드는 매크로로 분해될 수 없다.")
+                print(f"      런을 늘려도 풀리지 않는다 — 필요 n ≈ "
+                      f"{int(len(base) * (floor / max(worst, 1e-9)) ** 2):,}.")
+        print()
+    print("  '⚠ 훅이 낼 수 없는 값' 은 매크로 Δ 가 커널 안에서 실측한 비용의")
+    print("  3배를 넘었다는 뜻이다. 훅은 자기가 쓴 시간보다 더 느리게 만들 수")
+    print("  없으므로, 그 Δ 는 기계 상태이지 훅이 아니다. 예상 Δ 쪽을 결론으로")
+    print("  적고 매크로는 상한으로만 인용할 것.")
+    print()
+
+
 def dev_table(d):
     probes = _probe_files(d)
     if not probes:
@@ -224,12 +318,14 @@ def main():
         print(open(env).read())
     macro_table(d)
     micro_table(d)
+    crosscheck(d)
     dev_table(d)
     print("판정 0: '측정 무효' 가 붙은 워크로드는 판정에 쓰지 않는다.")
-    print("판정 1: 매크로 Δ 가 한 자릿수 % 여야 한다.")
-    print("      두 자릿수면 쓰기 통제를 inode_* 5종만으로 재설계한다 (CLAUDE.md S1).")
-    print("        전부 '노이즈 이하' 면 통과가 아니라 미측정이다 — --passes 를 늘려")
-    print("        상한을 좁히고, 그 상한을 결론으로 적는다.")
+    print("판정 1: 오버헤드가 한 자릿수 % 여야 한다. 두 자릿수면 쓰기 통제를")
+    print("      inode_* 5종만으로 재설계한다 (CLAUDE.md S1).")
+    print("      숫자는 '검산' 절의 예상 Δ 에서 읽는다 — 매크로 Δ 가 아니다.")
+    print("      매크로는 상한이다: 전부 '노이즈 이하' 면 통과가 아니라 '이 이상은")
+    print("      아니다' 이고, 검산이 그 이유(신호가 노이즈 바닥 아래)를 말해준다.")
     print("판정 2: E→D 차이 = 영장 하나를 조회하는 값. §13 의 '영장 없는 프로세스는")
     print("        조회 한 번으로 빠져나간다'가 참이면 E 는 C 에 가깝고 D 만 더 낸다.")
     print("        E 가 D 만큼 비싸면 그 주장은 거짓이고, 무영장 세션이 많은")
