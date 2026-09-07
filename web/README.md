@@ -19,3 +19,28 @@
   BPF 스택 제약으로 잘린다 (§14).
 - 감사 유실 구간은 **명시적으로 표시**한다. "빈 구간"을 숨기면 감사가 아니다.
 - 빌드 산출물 `web/dist` 는 커밋하지 않는다.
+
+## 프로젝트 구조 (2026-09-06)
+
+Vite 7 · React 19 · TypeScript · Tailwind 4 · shadcn/ui (new-york, `radix-ui`). 차트는 shadcn `chart`(recharts 3).
+
+```sh
+npm install
+npm run dev            # http://localhost:5173
+npm run build          # tsc -b && vite build → dist/
+npm run build:single   # 공유용 단일 HTML → dist-single/index.html
+npx shadcn@latest add <component>   # 컴포넌트 추가. components.json 이 경로를 안다
+```
+
+| 경로 | 내용 |
+|---|---|
+| `src/data.ts` | 시드 고정 목 데이터. 필드명은 `docs/session-warrant-ebpf-fields.html` §03·§11 을 따른다. 실서비스에서는 중앙 감사 API 가 이 자리를 대신한다 |
+| `src/lib/filters.ts` | 기간·노드·판정·훅·주체·검색어 필터. 모든 화면이 같은 함수로 이벤트를 고른다 |
+| `src/views/` | 개요 · 감사 검색 · 세션 타임라인(영장 계보) · 무영장 세션 |
+| `src/components/` | `event-table`(유실 구간을 제자리에 빗금 행으로) · `event-detail`(§03 공통 메타 전체) · `timeline-chart` · `pills` |
+| `src/components/ui/` | shadcn 생성물. 손대지 말고 CLI 로 갱신 |
+| `src/index.css` | 흑백 톤. 색은 판정 3색(차트·칩)과 critical/warning 강조에만 쓴다. 판정 3색은 색각이상 검증 통과 |
+| `dashboard/` | 같은 화면의 바닐라 HTML/CSS/JS 판. 빌드 없이 열린다. 의존성 없는 참고용 |
+
+위 「규칙」 네 줄이 코드에 어떻게 반영됐는지: 허용 쓰기는 개별 행 없이 5분 집계 한 건, argv 는 흐리게·inode 가 앞, 유실 구간은 빗금 행으로 표 안에 끼워 넣는다.
+발급·승인 큐 화면은 이번 학기 범위 밖이라 메뉴에 비활성으로만 둔다.
