@@ -13,7 +13,7 @@
 | S0 | 환경 · 빈도 프로파일 | attach·동작 확인 | ✅ |
 | S1 | `file_open` 오버헤드 | 한 자릿수 % | ✅ **통과 (1% 미만)** |
 | S2 | 태그 두 겹 — §04 표 | 앞 3줄 초록, 뒤 4줄 '끊김' | ✅ |
-| S3 | PAM 타이밍 | scope가 이미 존재 | 미착수 |
+| S3 | PAM 타이밍 | `present_t0` 전건 yes | ✅ **통과 (11/11, 공백 0)** |
 | S4 | inode 안정성 | 재컴파일 지점 목록화 | 미착수 |
 
 측정 환경은 전 구간 동일하다 — Ubuntu 24.04.4 / 커널 6.8.0-138-generic /
@@ -380,6 +380,131 @@ if (!w) w = wb_tag_by_cgroup(parent);   // 없으면 1차에서 승계
 
 ---
 
+## S3 — PAM 스택에서 session scope 가 확정되는 타이밍
+
+**질문:** `pam_warrant.so` 가 실행되는 그 순간에 `session-N.scope` 가 이미 있는가.
+**실패하면:** 태깅 공백이 생긴다. warrantd 가 cgroup 트리를 순회하거나 logind 의
+D-Bus `SessionNew` 를 구독해야 하고, `pam/` 와 `agent/internal/pamsock` 설계가
+통째로 바뀐다.
+
+§11 T1 이 "`pam_systemd.so` 뒤에 놓으면 있다"고 적어놨지만 **검증된 적 없는
+가정**이었다.
+
+### 설계 — 경로를 두 가지로 구해 나란히 적는다
+
+`pamprobe.c` 는 아무것도 막지 않는다. `open_session`·`close_session`·`acct_mgmt`
+마다 한 줄 기록하고 `PAM_SUCCESS` 로 끝난다. sshd 주소 공간 규칙을 지킨다 —
+malloc 없음, 고정 버퍼, 폴링 상한 200ms, 모든 실패 경로가 `PAM_SUCCESS`.
+
+| | 무엇 | 왜 |
+|---|---|---|
+| `proc_cgroup` | `/proc/self/cgroup` | logind 가 `CreateSession` 때 호출자를 scope 로 옮긴다 — sshd 자신이 이관됐나 |
+| `scope` | `XDG_SESSION_ID` 로 조립한 경로 | **제품이 실제로 쓸 방법** |
+| `match` | 둘이 같은가 | 어긋나면 제품이 `/proc/self/cgroup` 을 읽으면 안 된다는 근거 |
+
+`present_t0` 이 핵심 답이고, `no` 면 상한까지 폴링해 `waited_us` 에 공백을 남긴다.
+
+### 두 번 헛돌았다 — 세션이 안 만들어졌다
+
+1차(2026-09-07)·2차(2026-09-08 오전) 8건 전부 `xdg_session_id=-` 였다.
+`proc_cgroup` 이 이렇게 찍혔다:
+
+```
+/user.slice/user-1000.slice/user@1000.service/app.slice/
+  app-org.gnome.Terminal.slice/vte-spawn-5ab5fe72-….scope
+```
+
+**GNOME 터미널 scope 다. `session-N.scope` 가 아니다. 새 세션이 아예 안
+만들어졌다.**
+
+원인: **`pam_systemd.so` 는 호출한 프로세스가 이미 사용자 세션 안에 있으면 세션
+생성을 건너뛴다.** 데스크톱 터미널에서 `pamtester` 나 `su` 를 돌리면 그 프로세스는
+`user@1000.service` 아래라 logind 가 아무것도 안 만든다.
+
+**절차 설계의 오류였다.** README 에 "2단계(`/etc/pam.d/su`)에서 진짜
+`session-N.scope` 가 생기니 여기서 답이 나온다"고 적어놨는데, **`pam_systemd.so` 가
+스택에 있는 것과 그게 실제로 세션을 만드는 것을 같게 놓은 것**이다. 위험 낮은
+단계로 답의 80%를 얻겠다던 계획이 0% 였다.
+
+`report.py` 도 같은 이유로 틀린 진단을 냈다 — "삽입 위치가 `pam_systemd.so` 보다
+앞이다, 내려라". **위치는 맞았다.** 없는 문제를 쫓게 만드는 메시지다.
+→ `proc_cgroup` 의 `user@N.service` 로 **"세션이 안 만들어졌다"와 "위치가 틀렸다"를
+가르도록** 고쳤고, 전자는 판정 대상에서 아예 제외한다(실패가 아니라 구조적으로
+답할 수 없는 행이라, 섞어 세면 `3/11` 로 보여 통과가 안 보인다).
+
+**프로브 설계가 이걸 구했다.** `proc_cgroup` 을 같이 안 찍었으면 "`XDG_SESSION_ID`
+가 왜 비지?"에서 막혔다. 값 하나가 원인 규명을 대신했다.
+
+### 3차 — 세션 밖에서 부르니 만들어졌다
+
+```sh
+systemd-run --scope --slice=system.slice --quiet pamtester -v warrant-probe $USER open_session
+```
+
+`system.slice` 로 빠져나가면 "이미 세션 안"이 아니게 되므로 logind 가 세션을
+만든다. 3/3 `present_t0=yes`.
+
+**여기서 예상 못 한 수확이 나왔다.** 3회 모두 `session-4.scope` 인데 cgroup id 가
+다르다:
+
+```
+session-4.scope  →  cgid 13299, 13408, 13517
+```
+
+**`XDG_SESSION_ID` 는 재사용된다. cgroup id(inode)는 아니다.** 세션이 끝나면
+logind 가 번호를 반납하고 다음 세션이 같은 번호를 다시 받는데, cgroup 은 새로
+만들어지니 inode 가 다르다.
+
+**영장을 세션 번호에 걸었다면 다음 세션이 남의 영장을 물려받는다.** 만료 전에
+로그아웃한 사람의 영장을 같은 번호를 받은 다른 세션이 그대로 쓰게 된다.
+**§11 T1 이 cgroup id 를 키로 쓰는 설계의 직접 증거**이고, 재려던 게 아니라
+로그에 딸려 나온 것이다. `report.py` 가 이제 이 패턴을 자동으로 찍는다.
+
+### 4차 — sshd. 최종 답 (2026-09-08, `out/20260908-230244`)
+
+`/etc/pam.d/sshd` 에 삽입하고 `ssh localhost` 11회. 세션 14~24.
+
+| | 결과 |
+|---|---|
+| `XDG_SESSION_ID` 가 있다 | **11/11** |
+| `session-N.scope` 가 이미 있다 | **11/11** ← §11 T1 의 가정 |
+| `/proc/self/cgroup` 과 일치 | **11/11** |
+| `waited_us` | **전건 0** — 폴링이 한 번도 안 돌았다 |
+
+**S3 통과. 태깅 공백이 없다.**
+
+- **설계가 안 바뀐다.** `pam_warrant.so` 는 `XDG_SESSION_ID` → 경로 조립 → `stat`
+  로 끝난다. warrantd 의 cgroup 트리 순회도 logind D-Bus 구독도 필요 없다.
+- **(§11 T4) `close_session` 에서 scope 가 아직 살아 있다 (11/11).**
+  `cgroup_warrant` 엔트리 정리를 여기에 걸 수 있다. 다만 `nohup` 으로 살아남은
+  프로세스가 있으므로 정리 정책은 별도 판단이다.
+- `ssh localhost` 도 원격 접속과 경로가 완전히 같다 — sshd → PAM 스택 →
+  `pam_systemd.so` → `session-N.scope`. 다른 건 `rhost` 뿐이고 측정 대상이 아니다.
+  그리고 **깨진 걸 알아차리는 창구와 고치는 창구가 같은 자리에 있어서** 원격보다
+  안전하다.
+
+### 안전 절차 — 이 실험만 기계를 잠글 수 있다
+
+`/etc/pam.d/sshd` 가 망가지면 SSH 로 다시 못 들어온다. 기계가 멈추는 건 아니다 —
+열린 세션도 서비스도 콘솔 로그인(`/etc/pam.d/login`)도 `sudo`(`/etc/pam.d/sudo`)도
+멀쩡하다. **복구 경로가 하나 줄어드는 것**이 위험이다.
+
+그래서 단계를 올려가며 확인했다:
+
+| | | 위험 | 알 수 있는 것 |
+|---|---|---|---|
+| 1 | `pamtester` 전용 서비스 | 0 | 모듈이 세그폴트하지 않는다 |
+| 1.5 | `system.slice` 에서 `pamtester` | 0 | **판정 가능** |
+| 2 | `/etc/pam.d/su` | 낮음 | `su` 경로에서도 안 죽는다 |
+| 3 | `/etc/pam.d/sshd` | 여기만 | **최종 답** |
+
+넣는 줄은 `session optional …` 이라 모듈이 실패를 반환해도 로그인이 진행되고,
+`.so` 를 못 읽어도 PAM 이 넘어간다. 실제 위험은 **세그폴트와 무한 대기 둘뿐**이고
+1·2단계가 그걸 걸러낸다. 원본은 `.warrant-bak` 로 백업되고 `make disable` 이
+복원한다.
+
+---
+
 ## 부수 검증 — `server/` 빌드 (2026-09-01)
 
 스파이크는 아니지만 같이 실증했다. 52클래스가 Java 25(class major 69)로
@@ -419,10 +544,19 @@ Spring context는 **한 번도 뜬 적이 없다.** 컴파일만 됐고 datasour
 
 ## 다음
 
-1. **S3 — PAM 타이밍.** 로그만 찍는 20줄 모듈로 `pam_systemd.so` 뒤에서
-   `session-N.scope` 가 이미 존재하는지 확인한다. 결과가 아키텍처를 바꾼다 —
-   없으면 warrantd에 cgroup 트리 순회가 통째로 붙고 **태깅 공백**이 생긴다.
-   `/etc/pam.d/sshd` 를 건드리는 작업은 **물리 콘솔 접근이 가능한 상태에서만.**
-2. **S2 재실행** — 진짜 `session-N.scope` 로. `helpers.bash` 만 교체. 증거 커밋.
-3. **S4 — inode 안정성.** `apt upgrade` · `vim` 저장(write-new+rename) · logrotate
-   후 `(dev, ino)` 가 어떻게 바뀌는지. `bpf/` 제품 코드 개발과 병행 가능하다.
+**선행 검증 셋 중 둘이 끝났다** — `file_open` 오버헤드(S1)와 PAM 타이밍(S3).
+남은 건 inode 안정성(S4) 하나고, 그건 결과가 정책 컴파일러의 재컴파일 트리거
+목록만 바꾸므로 **제품 코드 개발과 병행해도 된다.**
+
+1. **`proto/warrant.proto` 확정.** 커널이 뭘 필요로 하는지 이제 안다 —
+   `cgroup_id`(세션 번호가 아니다) · `expires_ns` · `revoked` · `(dev, ino)` 목록.
+   확정 조건이 충족됐다.
+2. **`bpf/` 제품 코드** — 훅 부착 순서대로. `sched_process_fork` →
+   `bprm_check_security` 는 S2 가 이미 검증했고, `file_open` 판정 함수는
+   `bench/overhead/gate.bpf.c` 의 `oh_decide()` 가 초안이다.
+3. **`pam/pam_warrant.so`** — S3 이 방법을 확정했다. `XDG_SESSION_ID` → 경로 →
+   `stat` → warrantd 에 유닉스 소켓. **fail-open** 이어야 한다 (§17).
+4. **S2 재실행** — 진짜 `session-N.scope` 로. `helpers.bash` 만 교체하고 케이스는
+   손대지 않는다. 그리고 `bench/bypass/out/` 이 비어 있으니 그때 채운다.
+5. **S4 — inode 안정성.** `apt upgrade` · `vim` 저장(write-new+rename) ·
+   logrotate 후 `(dev, ino)` 가 어떻게 바뀌는지. `bpf/` 개발과 병행.

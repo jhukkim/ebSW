@@ -36,10 +36,11 @@ SSH 세션에 범위·유효기간을 가진 **영장(warrant)** 을 붙이고, 
 하나라도 빠진 채 `-EPERM`을 켜면 verifier를 통과한 버그 하나로 자기 박스에서
 잠긴다. 이 순서는 일정과 무관하게 지킨다.
 
-## 현재 상태 (2026-09-07)
+## 현재 상태 (2026-09-08)
 
-**S0 · S1 · S2 완료 · S3 잠정 통과. 남은 건 S3 의 sshd 확인과 S4 다.**
-BPF LSM이 붙고 돌고, 쓰기 포화 조건에서 오버헤드가 **1% 미만**이며, 태그 두 겹이 §04 표대로 동작한다.
+**S0 · S1 · S2 · S3 전부 통과. 남은 스파이크는 S4 뿐이고, 그건 제품 코드와 병행 가능하다.**
+BPF LSM이 붙고 돌고, 쓰기 포화 조건에서 오버헤드가 **1% 미만**이며, 태그 두 겹이 §04 표대로 동작하고,
+PAM session 단계에서 `session-N.scope` 가 이미 확정돼 있다(태깅 공백 없음).
 실험 경위 전체는 `docs/experiments.md` 에 있다.
 
 | 계층 | 상태 |
@@ -49,7 +50,7 @@ BPF LSM이 붙고 돌고, 쓰기 포화 조건에서 오버헤드가 **1% 미만
 | `server/` | Java 클래스 골격 52개 (시그니처 + 의사코드 주석, 본문 미구현). **빌드·의존성 해결 확인됨** — `bootJar` 까지 통과 |
 | `bench/overhead/` | S1 하네스 — 3차 실행 완료(티어 E 포함). **최악 조건 1% 미만 — S1 통과** |
 | `bench/bypass/` | S2 §04 표 = bats 13케이스 + §18 4구멍(skip). **8 통과 · 0 실패**. 출력 파일 미커밋 |
-| `bench/pamtiming/` | S3 하네스 — **잠정 통과**(`test-detached` 3/3). sshd 확인만 남음 |
+| `bench/pamtiming/` | S3 하네스 — **통과**. sshd 11/11, 태깅 공백 없음 |
 | `web/` | 감사 4화면(개요·검색·세션 타임라인·무영장). React 19 + shadcn, **빌드 확인됨**. 목 데이터 |
 | `proto/` `agent/` `pam/` | 디렉터리 + `README.md` 만. 코드 없음 |
 
@@ -117,33 +118,34 @@ BPF LSM이 붙고 돌고, 쓰기 포화 조건에서 오버헤드가 **1% 미만
 훅이 낼 수 없는 매크로 값이 나오면 경고한다 — 사람이 매번 눈치채야 하는 상태로
 두지 않는다.
 
-## S3에서 실측된 것 (2026-09-08, 커널 6.8.0) — 잠정 통과
+## S3에서 실측된 것 (2026-09-08, 커널 6.8.0 · OpenSSH 9.6p1) — 통과
 
-`bench/pamtiming` `test-detached` 3회(`out/20260908-225632`).
-**§11 T1 의 가정이 참이다 — 다만 아직 sshd 가 아니다.**
+`bench/pamtiming` 3단계, **`/etc/pam.d/sshd` 에서 `ssh localhost` 11회**
+(`out/20260908-230244`). 세션 14~24. **§11 T1 의 가정이 참이다.**
 
-- **`present_t0=yes` 3/3, `match=yes` 3/3, `waited_us=0`.**
-  session 단계에서 `session-N.scope` 가 **이미 확정돼 있다.**
-  `pam_warrant.so` 는 `XDG_SESSION_ID` → 경로 → `stat` 만으로 cgroup id 를
-  얻으면 된다. **warrantd 의 cgroup 트리 순회도, logind D-Bus 구독도 필요 없다.**
-  태깅 공백이 없다 — 이게 S3 이 확인하려던 전부다.
-- **`/proc/self/cgroup` 도 같은 값을 준다** (`match=yes`). 호출 시점에 이미
-  scope 로 이관이 끝나 있다. 그래도 제품은 §11 T1 대로 `XDG_SESSION_ID` 경로를
-  쓴다 — 두 값이 같다는 건 이 서비스에서 확인된 것이고, sshd 에서도 같다는
-  보장은 아직 없다.
+- **`present_t0` 11/11 · `match` 11/11 · `waited_us=0` 전건.**
+  session 단계에 들어온 순간 `session-N.scope` 가 **이미 확정돼 있다.**
+  폴링이 한 번도 안 돌았다 — **태깅 공백이 없다.**
+- **설계가 안 바뀐다.** `pam_warrant.so` 는 `XDG_SESSION_ID` → 경로 조립 →
+  `stat` 로 끝난다. **warrantd 의 cgroup 트리 순회도, logind D-Bus 구독도
+  필요 없다.** 실패했으면 `pam/` 와 `agent/internal/pamsock` 이 뒤집혔을 자리다.
+- **`/proc/self/cgroup` 도 같은 값을 준다** (`match=yes` 전건). 호출 시점에
+  scope 이관까지 끝나 있다. 그래도 제품은 §11 T1 대로 `XDG_SESSION_ID` 경로를
+  쓴다 — 두 값이 같은 건 확인된 사실이지 보장이 아니다.
+- **(§11 T4) `close_session` 에서 scope 가 아직 살아 있다 (11/11).**
+  `cgroup_warrant` 엔트리 정리를 `close_session` 에 걸 수 있다. 다만 `nohup`
+  으로 살아남은 프로세스가 있으므로 정리 정책은 별도 판단이다.
 - **★ `XDG_SESSION_ID` 는 재사용된다. cgroup id 는 아니다.**
-  3회 모두 `session-4.scope` 인데 cgid 가 **13299 · 13408 · 13517** 로 전부 다르다.
-  같은 세션 번호가 서로 다른 cgroup 을 가리켰다 — **영장을 세션 번호에 걸면
-  다음 세션이 남의 영장을 물려받는다.** §11 T1 이 cgroup id 를 키로 쓰는
-  설계가 옳다는 직접 증거이고, 이번 실행에서 예상 못 한 수확이다.
-- **어떻게 쟀나:** `systemd-run --scope --slice=system.slice` 로 사용자 세션을
-  빠져나간 뒤 `pamtester`. `pam_systemd.so` 는 호출자가 이미 세션 안이면 생성을
-  건너뛰므로, 데스크톱 터미널에서 돌린 1·2단계는 8건 전부 판정 불가였다
-  (`xdg_session_id=-`). **`pam_systemd.so` 가 스택에 있는 것과 그게 실제로
-  세션을 만드는 것은 다르다.**
-- **아직 sshd 가 아니다.** 서비스가 `warrant-probe` 이고 TTY 없는 호출이라
-  세션 class 가 sshd 와 다를 수 있다. **3단계(`/etc/pam.d/sshd` + `ssh localhost`)
-  로 확인해야 최종 근거가 된다.** 표본도 3건뿐이다.
+  앞선 `test-detached` 실행에서 3회 모두 `session-4.scope` 인데 cgid 가
+  **13299 · 13408 · 13517** 로 전부 달랐다. 같은 세션 번호가 서로 다른 cgroup 을
+  가리켰다 — **영장을 세션 번호에 걸면 다음 세션이 남의 영장을 물려받는다.**
+  §11 T1 이 cgroup id 를 키로 쓰는 설계의 직접 증거다. 재려던 게 아니라
+  로그에 딸려 나온 수확이다.
+- **여기까지 오는 데 두 번 헛돌았다.** `pam_systemd.so` 는 **호출자가 이미
+  사용자 세션 안이면 세션 생성을 건너뛴다.** 데스크톱 터미널에서 돌린 1·2단계
+  (`pamtester`·`su`)는 8건 전부 `xdg_session_id=-` 로 판정 불가였다.
+  **`pam_systemd.so` 가 스택에 있는 것과 그게 실제로 세션을 만드는 것은 다르다.**
+  `systemd-run --slice=system.slice` 로 세션 밖에서 부르면 만들어진다.
 - **부수 확인:** 기존 세션 안에서 `su` 를 하면 새 세션이 안 생기고 cgroup 이
   그대로다. §04 가 원하는 동작이고, **S2 의 `su` → `cg_tag=1` 을 PAM 층에서
   독립적으로 본 것**이다.
@@ -279,8 +281,8 @@ bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실�
 | **S0** ✅ | 환경 — `bootstrap.sh` · `enable-bpf-lsm.sh` · `bpf/smoke` | attach·동작 확인 | — |
 | **S1** ✅ | **`file_open` 오버헤드** — 5티어 비교, p99까지 | 한 자릿수 % | — (통과, **1% 미만**) |
 | S2 ✅ | 태그 두 겹 — cgroup + fork 전파, §04 표 = bats | 앞 3줄(6건) 초록, 뒤 4줄 '끊김'이 확인됨 | — (통과) |
-| **S3** 잠정 ✅ | PAM 타이밍 — `bench/pamtiming`. sshd 확인 남음 | `present_t0` 전건 yes | — (통과, 태깅 공백 없음) |
-| S4 | inode 안정성 — upgrade · `vim` 저장 · logrotate | 재컴파일 지점 목록화 | fanotify 범위 확대 |
+| S3 ✅ | PAM 타이밍 — `bench/pamtiming` (sshd 11/11) | `present_t0` 전건 yes | — (통과, 태깅 공백 없음) |
+| **S4** ← 마지막 | inode 안정성 — upgrade · `vim` 저장 · logrotate | 재컴파일 지점 목록화 | fanotify 범위 확대 |
 
 ### S1은 3단이 아니라 4단이다
 
