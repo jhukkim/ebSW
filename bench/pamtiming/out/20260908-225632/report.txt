@@ -1,0 +1,31 @@
+kernel   6.8.0-138-generic
+logind   
+sshd     OpenSSH_9.6p1 Ubuntu-3ubuntu13.19, OpenSSL 3.0.13 30 Jan 2024
+stack    41 줄 (sshd)
+date     2026-09-08T22:56:32+09:00
+
+── 서비스 · 단계별 ──────────────────────────────────────────
+
+  service      phase              건    scope 있음  proc=scope      대기 최대
+  su-l         close_session      2    0/2         0/2               0
+  su-l         open_session       2    0/2         0/2               0
+  warrant-probe open_session       9    3/9         3/9               0
+
+── 판정 ─────────────────────────────────────────────────────
+
+  대상: warrant-probe (sshd 아님) · open_session 11건
+
+  XDG_SESSION_ID 가 있다        3/11
+  session-N.scope 가 이미 있다   3/11   ← §11 T1 의 가정
+  /proc/self/cgroup 과 일치      3/11
+
+  ⚠ 8/11 건에만 XDG_SESSION_ID 가 없다. 서비스가 섞여 있다 —
+    아래 '서비스 · 단계별' 표에서 어느 서비스인지 보고 그것만 다시 잰다.
+
+  (§11 T4) close_session 2건 중 scope 가 아직 살아 있음: 0
+    살아 있으면 cgroup_warrant 엔트리 정리를 여기에 걸 수 있다.
+
+  주의: sshd 기록이 없다. 지금까지 본 서비스 = {'warrant-probe': 9, 'su-l': 4}
+    su 와 pamtester 는 기존 세션 안에서 불리면 새 세션을 만들지
+    않으므로 §11 T1 을 잴 수 없다 — 모듈이 안 죽는다는 것만 확인된다.
+    결론은 test-detached 또는 3단계(sshd)에서 나온다.
