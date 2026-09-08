@@ -49,7 +49,7 @@ PAM session 단계에서 `session-N.scope` 가 이미 확정돼 있다(태깅 �
 | `deploy/` | `bootstrap.sh` · `enable-bpf-lsm.sh` — 동작 |
 | `server/` | Java 클래스 골격 52개 (시그니처 + 의사코드 주석, 본문 미구현). **빌드·의존성 해결 확인됨** — `bootJar` 까지 통과 |
 | `bench/overhead/` | S1 하네스 — 3차 실행 완료(티어 E 포함). **최악 조건 1% 미만 — S1 통과** |
-| `bench/bypass/` | S2 §04 표 = bats 13케이스 + §18 4구멍(skip). **8 통과 · 0 실패**. 출력 파일 미커밋 |
+| `bench/bypass/` | S2 §04 표 = bats 13케이스 + §18 4구멍(skip). **8 통과 · 0 실패**, 출력 커밋됨. 진짜 세션으로 재확인 남음 |
 | `bench/pamtiming/` | S3 하네스 — **통과**. sshd 11/11, 태깅 공백 없음 |
 | `web/` | 감사 4화면(개요·검색·세션 타임라인·무영장). React 19 + shadcn, **빌드 확인됨**. 목 데이터 |
 | `proto/` `agent/` `pam/` | 디렉터리 + `README.md` 만. 코드 없음 |
