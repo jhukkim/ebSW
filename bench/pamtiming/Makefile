@@ -19,7 +19,7 @@ LOG     := /run/warrant-pamprobe.log
 LINE    := session optional $(SO) wait_ms=200
 MARK    := \# warrant-pamprobe (S3 스파이크 — 측정 뒤 반드시 제거)
 
-.PHONY: all check install test enable-su enable-sshd disable collect clean
+.PHONY: all check install test test-detached enable-su enable-sshd disable collect clean
 
 all: $(SO)
 
@@ -56,7 +56,41 @@ test: install
 	 for i in 1 2 3; do pamtester -v warrant-probe "$$u" open_session || true; done
 	@echo; echo "── $(LOG) ──"; tail -20 $(LOG) 2>/dev/null || echo "(비어 있다)"
 
-# ── 2단계: /etc/pam.d/su. 실패해도 ssh 로 들어올 수 있다 ─────────────
+# ── 1.5단계: 세션 밖에서 pamtester. 여기서 답이 나올 수도 있다 ──────
+#
+# pam_systemd.so 는 호출한 프로세스가 이미 사용자 세션 안에 있으면 세션
+# 생성을 건너뛴다. GNOME 터미널에서 pamtester 나 su 를 돌리면 그 프로세스는
+# user@1000.service 아래라 logind 가 아무것도 안 만든다 — 2026-09-08 측정에서
+# 전 건 xdg_session_id=- 로 나온 이유가 이것이다.
+#
+# system.slice 로 빠져나가면 "이미 세션 안"이 아니게 되므로 logind 가 세션을
+# 만들 여지가 생긴다. 되면 sshd 를 건드리지 않고 §11 T1 의 답이 나온다.
+# TTY 없는 호출에 logind 가 세션을 만들어 주는지는 돌려봐야 안다.
+test-detached: install
+	@test "$$(id -u)" = 0 || { echo "ERROR: sudo make test-detached"; exit 1; }
+	@command -v pamtester >/dev/null || { echo "ERROR: sudo apt install pamtester"; exit 1; }
+	@command -v systemd-run >/dev/null || { echo "ERROR: systemd-run 이 없다"; exit 1; }
+	@u=$${SUDO_USER:-root}; echo "── system.slice 안에서 pamtester × 3 (user=$$u) ──"; \
+	 for i in 1 2 3; do \
+	   systemd-run --scope --slice=system.slice --quiet --collect \
+	     pamtester -v warrant-probe "$$u" open_session || true; \
+	 done
+	@echo; echo "── 최근 기록 ──"; tail -5 $(LOG) 2>/dev/null || echo "(비어 있다)"
+	@echo
+	@if tail -5 $(LOG) 2>/dev/null | grep -q 'xdg_session_id=[0-9]'; then \
+	   echo "✓ 세션이 만들어졌다. sudo make collect 로 판정할 것 —"; \
+	   echo "  여기서 답이 나오면 3단계(sshd)는 확인용으로만 돌리면 된다."; \
+	 else \
+	   echo "✗ 여기서도 세션이 안 만들어졌다 (xdg_session_id=-)."; \
+	   echo "  logind 가 TTY 없는 호출에 세션을 안 준다는 뜻이다."; \
+	   echo "  → 3단계(sshd)로 간다. 그것만이 진짜 새 세션을 만든다."; \
+	 fi
+
+# ── 2단계: /etc/pam.d/su ────────────────────────────────────────────
+# 주의: 기존 세션 안에서 su 를 하면 새 세션이 만들어지지 않는다.
+# 이 단계로는 §11 T1 을 잴 수 없다 — 모듈이 su 경로에서도 안 죽는다는 것만
+# 확인하는 자리다. 2026-09-08 에 이걸 모르고 "여기서 답이 나온다"고
+# 적어 뒀다가 8건 전부 xdg_session_id=- 를 받았다.
 enable-su:
 	@$(MAKE) --no-print-directory _patch F=/etc/pam.d/su
 
@@ -104,6 +138,7 @@ collect:
 	   echo "stack    $$(grep -c . /etc/pam.d/sshd) 줄 (sshd)"; \
 	   echo "date     $$(date -Is)"; } > $$d/env.txt; \
 	 cp $(LOG) $$d/pamprobe.log; \
+	 : > $(LOG); \
 	 python3 report.py $$d | tee $$d/report.txt; \
 	 if [ -n "$$SUDO_USER" ]; then chown -R "$$SUDO_USER" out; fi; \
 	 echo; echo "결과: $$d"; \

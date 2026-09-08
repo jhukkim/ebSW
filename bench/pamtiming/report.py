@@ -12,6 +12,9 @@ import sys
 from collections import Counter, defaultdict
 
 KV = re.compile(r"(\w+)=(\S*)")
+# 이미 사용자 세션 안에서 불렸는지. user@N.service 아래(app.slice · vte-spawn 등)
+# 이거나 session-N.scope 가 아닌 user.slice 경로면 새 세션이 만들어지지 않은 것이다.
+IN_USER_MGR = re.compile(r"/user@\d+\.service/")
 
 
 def load(path):
@@ -82,10 +85,33 @@ def main():
     print(f"  /proc/self/cgroup 과 일치      {match}/{n}")
     print()
 
-    if sid < n:
-        print("  ✗ XDG_SESSION_ID 가 비었다. pam_systemd.so 보다 앞에 놓였거나")
-        print("    logind 가 이 서비스에 세션을 만들지 않는다.")
-        print("    → PAM 스택에서 삽입 위치를 내리고 다시 잰다.")
+    if sid == 0:
+        # 원인이 둘인데 대응이 정반대다. proc_cgroup 이 갈라 준다.
+        #   (a) 세션이 애초에 안 만들어졌다 — 호출자가 이미 사용자 세션 안이다.
+        #       pam_systemd.so 는 그러면 생성을 건너뛴다. 위치는 아무 잘못 없다.
+        #   (b) 스택에서 pam_systemd.so 보다 앞에 놓였다.
+        # (a) 에서 "위치를 내려라"고 하면 없는 문제를 쫓게 된다.
+        inside = [r for r in target if IN_USER_MGR.search(r.get("proc_cgroup", ""))]
+        if inside:
+            print("  ⊘ 판정 불가 — 새 세션이 만들어지지 않았다.")
+            print()
+            print(f"    {len(inside)}/{n} 건의 호출자가 이미 사용자 세션 안에 있다:")
+            print(f"      {inside[0].get('proc_cgroup','')[:96]}")
+            print()
+            print("    pam_systemd.so 는 호출한 프로세스가 이미 세션 안이면 세션 생성을")
+            print("    건너뛴다. 그래서 XDG_SESSION_ID 가 안 붙고 잴 대상 자체가 없다.")
+            print("    삽입 위치 문제가 아니다 — 위치를 내려도 결과는 같다.")
+            print()
+            print("    → 진짜 새 세션이 필요하다. 둘 중 하나:")
+            print("       sudo make test-detached      system.slice 에서 pamtester")
+            print("       sudo make enable-sshd + ssh  확실한 쪽. 3단계")
+        else:
+            print("  ✗ XDG_SESSION_ID 가 비었다. 새 세션은 만들어졌는데 모듈이")
+            print("    그 값을 못 봤다 — pam_systemd.so 보다 앞에 놓였을 가능성이 크다.")
+            print("    → PAM 스택에서 삽입 위치를 내리고 다시 잰다.")
+    elif sid < n:
+        print(f"  ⚠ {n-sid}/{n} 건에만 XDG_SESSION_ID 가 없다. 서비스가 섞여 있다 —")
+        print("    아래 '서비스 · 단계별' 표에서 어느 서비스인지 보고 그것만 다시 잰다.")
     elif t0 == n:
         print("  ✓ S3 통과. session 단계에서 scope 가 이미 확정돼 있다.")
         print("    pam_warrant.so 는 XDG_SESSION_ID → 경로 → stat 만으로 cgroup id 를")
@@ -131,7 +157,9 @@ def main():
     if not ssh:
         print()
         print(f"  주의: sshd 기록이 없다. 지금까지 본 서비스 = {dict(svcs)}")
-        print("    2단계(su)까지만 돌린 상태다. 결론은 3단계(sshd)에서 나온다.")
+        print("    su 와 pamtester 는 기존 세션 안에서 불리면 새 세션을 만들지")
+        print("    않으므로 §11 T1 을 잴 수 없다 — 모듈이 안 죽는다는 것만 확인된다.")
+        print("    결론은 test-detached 또는 3단계(sshd)에서 나온다.")
 
 
 if __name__ == "__main__":

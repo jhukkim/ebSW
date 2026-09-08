@@ -60,48 +60,100 @@ make check                  # libpam-dev · pamtester · logind · cgroup v2
 sudo make install
 ```
 
+`make collect` 는 `out/<타임스탬프>/` 로 복사한 뒤 `/run` 로그를 비운다.
+**디렉터리 하나 = 측정 한 번**이다. (초기에는 안 비워서 나중 디렉터리에 이전
+줄이 그대로 또 들어갔다 — `out/20260908-114104` 가 그 흔적이다.)
+
+> **먼저 알아야 할 것 — 아무 데서나 잴 수 없다.**
+>
+> `pam_systemd.so` 는 **호출한 프로세스가 이미 사용자 세션 안에 있으면 세션 생성을
+> 건너뛴다.** 데스크톱 터미널에서 `pamtester` 나 `su` 를 돌리면 그 프로세스는
+> `user@1000.service` 아래라 logind 가 아무것도 안 만든다 — `XDG_SESSION_ID` 가
+> 안 붙고 **잴 대상 자체가 없다.**
+>
+> 2026-09-08 측정이 이걸로 8건 전부 `xdg_session_id=-` 가 나왔다. 스택 위치는
+> 맞았는데 세션이 없었다. **`pam_systemd.so` 가 스택에 있는 것과 그게 실제로
+> 세션을 만드는 것은 다르다.**
+>
+> 진짜 새 세션은 **밖에서 들어와야** 만들어진다 — SSH 접속, TTY 로그인,
+> 데스크톱 로그인 화면. 그래서 1·2단계는 **안전 확인용**이고 판정은
+> 1.5단계나 3단계에서 나온다.
+
 ### 1단계 — `pamtester`. sshd 를 건드리지 않는다 (위험 0)
 
 ```sh
 sudo make test
 ```
 
-전용 서비스 파일 `/etc/pam.d/warrant-probe` 로만 돈다. **여기서 모듈이 죽지 않고
-로그가 찍히는 걸 확인한 뒤에** 다음으로 간다. 죽으면 `.so` 를 고치면 그만이고
-아무것도 잠기지 않는다.
+전용 서비스 파일 `/etc/pam.d/warrant-probe` 로만 돈다. **모듈이 죽지 않고 로그가
+찍히는 걸 확인하는 자리다** — 판정은 여기서 안 나온다(위 상자). 죽으면 `.so` 를
+고치면 그만이고 아무것도 잠기지 않는다.
 
-### 2단계 — `/etc/pam.d/su`. 실패해도 SSH 로 들어올 수 있다 (위험 낮음)
+### 1.5단계 — 세션 밖에서 `pamtester`. 여기서 답이 나올 수도 있다 (위험 0)
+
+```sh
+sudo make test-detached
+```
+
+`systemd-run --scope --slice=system.slice` 로 사용자 세션을 빠져나간 뒤 `pamtester`
+를 돌린다. "이미 세션 안"이 아니게 되므로 logind 가 세션을 만들 여지가 생긴다.
+**되면 sshd 를 건드리지 않고 §11 T1 의 답이 나온다.**
+
+`make test-detached` 가 `xdg_session_id` 를 보고 성공/실패를 직접 찍는다.
+실패하면 logind 가 TTY 없는 호출에 세션을 안 준다는 뜻이고, 3단계로 간다.
+
+### 2단계 — `/etc/pam.d/su` (위험 낮음. 판정은 못 한다)
 
 ```sh
 sudo make enable-su
-su - $USER -c true          # 진짜 logind 세션이 만들어진다
+su - $USER -c true
 sudo make collect
 ```
 
-`su` 도 `common-session` 을 거치므로 `pam_systemd.so` 가 돌고 진짜
-`session-N.scope` 가 생긴다. **1단계에서 못 보는 것(실제 logind 세션)을 여기서
-보고, 3단계에서만 볼 수 있는 것(sshd 스택의 실제 순서)만 남긴다.**
+**기존 세션 안에서 `su` 를 하면 새 세션이 만들어지지 않는다.** 그래서 이 단계로는
+§11 T1 을 잴 수 없다 — **모듈이 `su` 경로에서도 안 죽는다는 것만** 확인하는
+자리다. 1.5단계가 통과했다면 건너뛰어도 된다.
+
+(부수 확인: 세션이 안 갈리므로 cgroup 이 그대로고 태그가 유지된다. §04 가 원하는
+동작이고, S2 의 `su` → `cg_tag=1` 과 같은 사실을 PAM 층에서 본 것이다.)
 
 `su` 가 깨져도 SSH 는 멀쩡하다. 되돌리기는 `sudo make disable`.
 
 ### 3단계 — `/etc/pam.d/sshd`. 여기서만 잠긴다
 
-**시작 전에 셋 다 확인:**
+**"잠긴다"는 기계가 멈춘다는 뜻이 아니다.** 건드리는 건 `/etc/pam.d/sshd`
+하나뿐이라 **새 SSH 접속만** 막힌다 — 열려 있는 세션도, 돌던 서비스도, 콘솔
+로그인(`/etc/pam.d/login`)도, `sudo`(`/etc/pam.d/sudo`)도 멀쩡하다. 위험한 건
+복구 경로가 하나 줄어든다는 것이지 기계가 죽는 게 아니다.
 
-1. **물리 콘솔에 접근할 수 있다** (모니터·키보드, 또는 IPMI/iDRAC)
-2. **root 셸을 하나 열어 두고 그 창을 닫지 않는다** — 잘못돼도 여기서 되돌린다
-3. 2단계가 통과했다
+**시작 전 확인:**
+
+1. **콘솔 접근** — 서브 PC 앞에 직접 앉아 로컬 터미널로 작업 중이면 **이미
+   충족이다.** 지금 쓰는 그 터미널이 콘솔이다. 맥북에서 SSH 로 붙어 작업
+   중이라면 그 연결이 유일한 통로이므로 모니터·키보드를 먼저 확보한다.
+2. **`ssh localhost true` 가 원래 되는지 먼저 확인** — 안 되면 나중에 실패했을 때
+   모듈 탓인지 원래 안 되던 건지 구분이 안 된다. 처음이면
+   `ssh -o StrictHostKeyChecking=accept-new localhost true`.
+3. 1단계가 통과했다 (모듈이 안 죽는다)
 
 ```sh
-# root 셸을 하나 열어 둔 채로:
-sudo I_HAVE_CONSOLE=1 make enable-sshd
+ssh localhost true && echo "기준선 정상"     # ← 건드리기 전에 먼저
 
-# 다른 터미널에서 새 SSH 접속 — 들어와지는지부터 본다
-ssh localhost true && echo "로그인 정상"
+sudo I_HAVE_CONSOLE=1 make enable-sshd
+ssh localhost true && echo "로그인 정상"     # ← 바로 이걸 확인
+for i in $(seq 10); do ssh localhost true; done   # 간헐성을 보려면 여러 번
 
 sudo make collect
 sudo make disable           # 측정이 끝나면 즉시 되돌린다
 ```
+
+**`ssh localhost` 도 진짜 SSH 로그인이다.** sshd → PAM 스택 → `pam_systemd.so` →
+`session-N.scope` 경로가 원격 접속과 완전히 같다. 다른 건 `rhost` 뿐이고 그건
+측정 대상이 아니다. 그리고 **깨진 걸 알아차리는 창구와 고치는 창구가 같은 자리에
+있어서** 원격에서 하는 것보다 훨씬 안전하다.
+
+**여러 번 돌릴 것.** `report.py` 가 "일부만 `present_t0=yes`" 를 「가장 나쁜
+결과」로 찍는데, 한 번만 들어가면 그 간헐성이 안 보인다.
 
 `I_HAVE_CONSOLE=1` 없이는 `enable-sshd` 가 거부한다. 실수로 치는 걸 막기 위한 것이다.
 
@@ -133,6 +185,7 @@ python3 report.py out/<타임스탬프>
 
 | 결과 | 뜻 |
 |---|---|
+| `⊘ 판정 불가 — 새 세션이 만들어지지 않았다` | 호출자가 이미 사용자 세션 안이었다. **삽입 위치 문제가 아니다** — 1.5단계나 3단계로 간다 |
 | `✓ S3 통과` | `present_t0` 전건 `yes`. 설계 그대로 간다 |
 | `✗ 실패 — N ms 뒤에 나타난다` | 태깅 공백. `pam/` · `agent/` 설계 변경 |
 | `⚠ 불안정` | 일부만 `yes`. **가장 나쁜 결과다** — 재현되지 않는 공백은 사후에 언제 태그가 빠졌는지 알 수 없다 |
