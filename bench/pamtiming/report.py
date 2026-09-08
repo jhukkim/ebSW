@@ -71,6 +71,21 @@ def main():
         print("  open_session 기록이 없다. 판정 불가.")
         return
 
+    # 호출자가 이미 사용자 세션 안이었던 행은 판정 대상이 아니다 —
+    # 실패한 게 아니라 구조적으로 답할 수 없는 행이다. 섞어서 세면
+    # 3/11 처럼 보여 통과가 안 보인다.
+    excluded = [r for r in target if IN_USER_MGR.search(r.get("proc_cgroup", ""))]
+    usable = [r for r in target if r not in excluded]
+    if excluded:
+        print(f"  판정 제외 {len(excluded)}건 — 호출자가 이미 사용자 세션 안이라")
+        print("    새 세션이 만들어지지 않았다 (pam_systemd 가 생성을 건너뛴다).")
+        print()
+    if not usable:
+        print("  ⊘ 판정 불가 — 새 세션이 만들어진 호출이 하나도 없다.")
+        print("    → sudo make test-detached  또는  3단계(sshd).")
+        return
+
+    target = usable
     n = len(target)
     t0 = sum(1 for r in target if r.get("present_t0") == "yes")
     match = sum(1 for r in target if r.get("match") == "yes")
@@ -136,6 +151,24 @@ def main():
         print("    제품에서 언제 태그가 빠졌는지 사후에 알 수 없다.")
         if waited:
             print(f"    나머지는 {min(waited)/1000:.1f}~{max(waited)/1000:.1f}ms 뒤에 나타났다.")
+
+    # XDG_SESSION_ID 는 재사용된다. cgroup id(inode)는 안 된다.
+    # 영장을 세션 번호에 걸면 다음 세션이 남의 영장을 물려받는다 —
+    # §11 T1 이 cgroup id 를 키로 쓰는 이유가 여기서 실물로 확인된다.
+    by_sid = defaultdict(set)
+    for r in target:
+        sid_v = r.get("xdg_session_id", "-")
+        if sid_v not in ("-", ""):
+            by_sid[sid_v].add(r.get("scope_cgid"))
+    reused = {k: v for k, v in by_sid.items() if len(v) > 1}
+    if reused:
+        print()
+        print("  ★ XDG_SESSION_ID 가 재사용됐다 — cgroup id 는 매번 다르다:")
+        for k, v in sorted(reused.items()):
+            print(f"      session-{k}.scope  →  cgid {', '.join(sorted(v))}")
+        print("    같은 세션 번호가 서로 다른 cgroup 을 가리켰다. 영장을 세션")
+        print("    번호에 걸면 다음 세션이 남의 영장을 물려받는다.")
+        print("    → cgroup id 를 키로 쓰는 §11 T1 설계가 옳다는 직접 증거다.")
 
     # close_session — §11 T4 의 정리 시점
     cl = [r for r in rows if r.get("phase") == "close_session"]
