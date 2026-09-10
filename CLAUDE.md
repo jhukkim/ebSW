@@ -6,6 +6,9 @@ SSH 세션에 범위·유효기간을 가진 **영장(warrant)** 을 붙이고, 
 - `docs/session-warrant-plan.html` — 개념·기획·아키텍처 통합본 (r09, 2026-08-15). 절 번호(§01~§19)로 참조된다.
 - `docs/session-warrant-tech-stack.html` — 기술 스택 선택과 근거 (2026-08-19).
 - `docs/session-warrant-ebpf-fields.html` — BPF가 뽑아내는 값 전체 목록 (§01~§14).
+- `docs/session-warrant-qa.html` — 심사 질의 대응 30문항. 짧은 답 + 절 번호·실측 근거 (2026-09-10).
+- `docs/session-warrant-progress.html` — 지도교수 진행 보고서, 경어체. 스파이크 3/4 통과 · 계층별 상태 · 정정 사항 · 4주 계획 (2026-09-10).
+- `docs/session-warrant-pitch.html` — 10분 발표용 기획 의도·목표. 분 단위 시간 배분, 화살표 키 이동, T 키 타이머 (2026-09-10).
 
 문서들은 서로를 절 번호로 상호 참조한다. 설계 관련 판단이 필요하면 추측하지 말고 해당 절을 먼저 읽을 것.
 
@@ -51,6 +54,7 @@ PAM session 단계에서 `session-N.scope` 가 이미 확정돼 있다(태깅 �
 | `bench/overhead/` | S1 하네스 — 3차 실행 완료(티어 E 포함). **최악 조건 1% 미만 — S1 통과** |
 | `bench/bypass/` | S2 §04 표 = bats 13케이스 + §18 4구멍(skip). **8 통과 · 0 실패**, 출력 커밋됨. 진짜 세션으로 재확인 남음 |
 | `bench/pamtiming/` | S3 하네스 — **통과**. sshd 11/11, 태깅 공백 없음 |
+| `bench/inode/` | S4 하네스 — fanotify 감시자 + 변형 카탈로그. **아직 안 돌렸다** |
 | `web/` | 감사 4화면(개요·검색·세션 타임라인·무영장). React 19 + shadcn, **빌드 확인됨**. 목 데이터 |
 | `proto/` `agent/` `pam/` | 디렉터리 + `README.md` 만. 코드 없음 |
 
@@ -243,10 +247,44 @@ agent/    Go · warrantd
           cmd/warrantd/ · internal/{loader,bpfmap,pamsock,policy,ringbuf,upstream,store}/ · bpf/(bpf2go 생성물, 커밋한다)
 pam/      C · pam_warrant.so (200줄 이내로 유지)
 server/   Java · Spring Boot  ← 골격 있음
-web/      대시보드 (Grafana 대체 가능)
+web/      대시보드 — 이번 학기 범위 밖. Grafana 로 대체, 목 데이터 상태로 동결
 deploy/   bootstrap.sh · enable-bpf-lsm.sh · systemd/ · ansible/
-bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실측) · pamtiming/(PAM 타이밍)
+bench/    bypass/(§04 우회) · overhead/(훅별 실측) · pamtiming/(PAM 타이밍) · inode/(inode 안정성)
 ```
+
+## 3인 분담 (2026-09-09 확정)
+
+기술 스택 문서 §10 의 A·B·C 틀을 따르되, **프론트(`web/`)는 범위에서 뺀다.**
+화면은 Grafana 가 PostgreSQL 을 직접 읽는 걸로 대체하고, React 화면 4개는 목 데이터
+상태로 동결한다. C 가 화면 대신 warrantd 의 유저 공간 절반을 가져간다.
+
+| | 이름 | 담당 | 소유 디렉터리 |
+|---|---|---|---|
+| **A** | 장지은 | 커널 | `bpf/` · `agent/internal/{loader,bpfmap,ringbuf,policy}` |
+| **B** | 김종혁 | 서버·계약 | `proto/` · `server/` · `agent/internal/{upstream,store}` |
+| **C** | 김강민 | 노드 통합·검증·운영 | `pam/` · `agent/internal/pamsock` · `agent/cmd/warrantd` · `bench/` · `deploy/` |
+
+**경계는 언어가 아니라 계약이다.** 사람 경계가 계약 경계와 겹치도록 잘랐다.
+
+- **A ↔ B 의 경계는 BPF 맵 레이아웃 하나다.** gRPC 가 아니다. `bpfmap` 패키지는 A 소유이고,
+  B 의 `upstream` 은 그 패키지의 함수만 부른다. 맵 값 구조체는 `proto/warrant.proto` 에서 나온다.
+- **PAM 과 `pamsock` 은 유닉스 소켓 한 쌍이고 양 끝을 C 가 쓴다.** 와이어 포맷을 문서로
+  합의할 필요가 없다. 검증 하네스 `bench/pamtiming` 도 같은 사람 것이다.
+- **gRPC 양 끝(서버 · warrantd 클라이언트)을 B 가 쓴다.** B 가 Go 를 못 하면
+  `upstream`·`store` 는 C 로 넘기고, 그때는 proto 확정이 더 급해진다.
+- **벤치는 커널 담당이 짜지 않는다.** 자기 코드를 자기가 재면 유리한 조건만 재게 된다.
+
+**기계.** BPF 는 서브 PC 한 대에서만 돈다. A 가 기계를 소유한다. C 는 PAM 작업에 물리
+콘솔이 필요하므로 시간대를 나누거나 두 번째 박스를 둔다. B 는 기계가 필요 없다.
+
+**인수인계.** 스파이크 S0~S3 와 proto 초안은 김종혁이 혼자 진행했다. 커널 실측 경험이
+전부 B 에게 있으므로, 첫 주에 `docs/experiments.md` 와 `bench/` 결과를 A 에게 넘기는
+시간을 따로 잡는다.
+
+**통합 마일스톤은 하나다.** 훅 하나(`sched_process_fork` 또는 `bprm_check_security`)
+→ warrantd → 서버 → Grafana 패널까지 **"무영장 세션 한 건이 뜬다"를 4주 차에** 만든다.
+그 뒤로는 A 가 훅을 하나씩 늘릴 때마다 C 가 bench 로, B 가 서버 테스트로 검증만 한다.
+강제 모드는 누구 담당에도 넣지 않는다.
 
 ## 작업 규칙
 
@@ -282,7 +320,7 @@ bench/    bypass/(§04 우회 경로 = bats 케이스) · overhead/(훅별 실�
 | **S1** ✅ | **`file_open` 오버헤드** — 5티어 비교, p99까지 | 한 자릿수 % | — (통과, **1% 미만**) |
 | S2 ✅ | 태그 두 겹 — cgroup + fork 전파, §04 표 = bats | 앞 3줄(6건) 초록, 뒤 4줄 '끊김'이 확인됨 | — (통과) |
 | S3 ✅ | PAM 타이밍 — `bench/pamtiming` (sshd 11/11) | `present_t0` 전건 yes | — (통과, 태깅 공백 없음) |
-| **S4** ← 마지막 | inode 안정성 — upgrade · `vim` 저장 · logrotate | 재컴파일 지점 목록화 | fanotify 범위 확대 |
+| **S4** ← 마지막 | inode 안정성 — `bench/inode` (하네스 완성, 미실행) | inode 가 바뀌는 조작을 fanotify 가 **전부** 잡는다 | fanotify 범위 확대 · 주기적 재stat |
 
 ### S1은 3단이 아니라 4단이다
 

@@ -51,3 +51,6 @@ web/dist/
 
 # ── S3 (bench/pamtiming) ───────────────────────────────────────────
 bench/pamtiming/*.so
+
+# ── S4 (bench/inode) ───────────────────────────────────────────────
+bench/inode/inowatch
