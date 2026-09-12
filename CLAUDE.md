@@ -1,4 +1,8 @@
-# Session Warrant
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Session Warrant
 
 SSH 세션에 범위·유효기간을 가진 **영장(warrant)** 을 붙이고, 그 영장을 셸이 아니라 **커널(eBPF LSM)** 이 집행하는 서버 접근통제 제품.
 기존 게이트웨이/프록시형 SSH 접근제어(Teleport, StrongDM 등)가 못 하는 "문을 통과한 다음"을 통제한다.
@@ -9,6 +13,7 @@ SSH 세션에 범위·유효기간을 가진 **영장(warrant)** 을 붙이고, 
 - `docs/session-warrant-qa.html` — 심사 질의 대응 30문항. 짧은 답 + 절 번호·실측 근거 (2026-09-10).
 - `docs/session-warrant-progress.html` — 지도교수 진행 보고서, 경어체. 스파이크 3/4 통과 · 계층별 상태 · 정정 사항 · 4주 계획 (2026-09-10).
 - `docs/session-warrant-pitch.html` — 10분 발표용 기획 의도·목표. 분 단위 시간 배분, 화살표 키 이동, T 키 타이머 (2026-09-10).
+- `docs/experiments.md` — **S0~S4 실험 기록.** 결론만이 아니라 틀렸던 중간 결론과 그걸 알아낸 방법까지. 아래 「~에서 실측된 것」 절들의 원본이다.
 
 문서들은 서로를 절 번호로 상호 참조한다. 설계 관련 판단이 필요하면 추측하지 말고 해당 절을 먼저 읽을 것.
 
@@ -174,6 +179,39 @@ PAM session 단계에서 `session-N.scope` 가 이미 확정돼 있다(태깅 �
   셋 다 미구현이라 skip이다. **"끊긴다"는 검증했고 "막는다"는 아직이다** — 이 구분을
   흐리지 말 것.
 
+## 아키텍처 — 세 평면 (§10)
+
+판정 시점에 유저 공간으로 올라오는 왕복이 **하나도 없다**는 게 설계의 핵심이다.
+중앙은 발급하고, 노드 유저 공간은 맵에 옮겨 적고, **커널은 그 맵만 보고 판정한다.**
+
+```
+중앙 (server/)                 노드 유저 공간 (agent/ pam/)        커널 (bpf/)
+─────────────────              ──────────────────────────        ─────────────
+발급 · 승인 · 신원                warrantd                          BPF 맵
+Ed25519 서명                      · 정책 → (dev,ino) 컴파일           cgroup_warrant
+      │                          · 절대시각 → boot 기준 변환          task_warrant
+      │  gRPC push               · ringbuf 소비                      warrants
+      └─────────────────────▶    · bbolt 로컬 캐시                    rule_{exec,write,net}
+                                      │                                   ▲
+      ◀─────────────────────         맵 쓰기 ──────────────────────────────┘
+         감사 이벤트 스트림             ▲                                   │
+                                       │ 유닉스 소켓                      판정
+                                  pam_warrant.so                          │
+                                  (세션 → cgroup id)              세션 프로세스
+```
+
+**계층 경계에서 무엇이 변환되는가** — 이게 세 계층을 같이 안 보면 안 보이는 부분이다.
+
+| 경계 | 들어가는 것 | 나오는 것 | 변환 주체 |
+|---|---|---|---|
+| 중앙 → warrantd | 경로 문자열 · CIDR | `(dev, ino)` · LPM 엔트리 | warrantd `internal/policy` |
+| 중앙 → warrantd | 절대시각 (Unix ns) | `expires_ns` (노드 boot 기준) | warrantd. **여기서만 한다** |
+| PAM → warrantd | `XDG_SESSION_ID` | cgroup id | `pam_warrant.so` (S3 에서 방법 확정) |
+| warrantd → 커널 | `Warrant` 메시지 | `struct warrant` 맵 값 | `internal/bpfmap` |
+
+세 계층의 구조체가 전부 `proto/warrant.proto` 에서 나온다. 커널 구조체와 서버
+엔티티가 어긋나면 디버깅이 지옥이 되므로 **필드는 예외 없이 거기부터 고친다.**
+
 ## 핵심 개념 (여기서 벗어나면 제품이 아니다)
 
 - **영장은 cgroup에 붙는다.** systemd-logind가 만드는 `session-N.scope` 의 cgroup id에 걸어서 `sudo`·`su` 로 uid가 바뀌어도 표식이 유지된다. 2차 방어선으로 `sched_process_fork` 에서 부모 태그를 자식 task_storage에 복사한다. 이 두 겹이 성립하지 않으면 제품 전체가 성립하지 않는다 (§04).
@@ -229,14 +267,87 @@ spring-security-oauth2 7.1.1 · hibernate 7.4.5. **Boot 버전을 올릴 때 이
 
 검증 대상: 커널 7.0(Ubuntu 26.04) · Rocky 9 호환. 3노드 구성은 중앙 서버가 붙는 시점에 꺼낸다.
 
-```sh
-./deploy/bootstrap.sh              # 커널·BTF·lsm=bpf·툴체인 확인. 표로 찍는다
-./deploy/bootstrap.sh --install    # 부족한 것 설치 (22.04/24.04 양쪽 대응)
-sudo ./deploy/enable-bpf-lsm.sh    # lsm= 에 bpf 추가. 재부팅 필요
-make -C bpf && sudo ./bpf/smoke    # S0 스모크
-```
+명령은 아래 「명령」 절에 모아 뒀다.
 
 `cat /sys/kernel/security/lsm` 출력에 `bpf` 가 없으면 강제 모드는 한 줄도 못 짠다. `enable-bpf-lsm.sh` 는 **지금 떠 있는 목록을 읽어 거기에 `,bpf` 만 덧붙인다** — `lsm=bpf` 만 단독으로 넣으면 AppArmor가 빠지면서 부팅이 깨질 수 있다.
+
+## 명령
+
+계층마다 도구가 다르다. **BPF·bench 는 서브 PC(Linux, root)에서만 돈다.**
+`server/` 와 `web/` 는 맥북에서도 된다.
+
+### 환경 확인 — 막히면 여기부터
+
+```sh
+./deploy/bootstrap.sh              # 커널·BTF·lsm=bpf·툴체인. 표로 찍는다
+./deploy/bootstrap.sh --install    # 부족한 것 설치 (22.04/24.04 양쪽)
+sudo ./deploy/enable-bpf-lsm.sh    # lsm= 에 bpf 추가. 재부팅 필요
+```
+
+`make check` 가 `bpf/` 와 `bench/*` 전부에 있다. **BPF 쪽이 안 되면 그 디렉터리의
+`make check` 를 먼저 돌린다** — 없는 도구와 설치 명령을 같이 찍어준다.
+
+### BPF
+
+```sh
+make -C bpf                 # smoke.bpf.o + 로더. vmlinux.h 는 여기서 생성(gitignore)
+sudo ./bpf/smoke            # S0 스모크
+make -C bpf check           # BTF · lsm · clang · bpftool
+```
+
+### 벤치 — 훅을 붙일 때마다 돌린다
+
+```sh
+# S1 오버헤드 (5티어 × 워크로드 4종)
+cd bench/overhead && make && ./fixture.sh
+sudo ./run.sh                                  # 기본 5회 × 4패스
+sudo ./run.sh --passes 6 --runs 10             # 정식
+sudo ./run.sh --workloads w_untar,w_find       # 일부만
+python3 report.py out/<타임스탬프>              # 재집계
+
+# S2 §04 우회 표 (bats)
+cd bench/bypass && make && sudo make test      # 17케이스 → out/<ts>.txt
+sudo bats -f '§04-3' tag_propagation.bats      # ← 케이스 하나만
+sudo bats tag_propagation.bats                 # 한 파일만
+
+# S3 PAM 타이밍 — 3단계 사다리를 건너뛰지 말 것
+cd bench/pamtiming && make && sudo make install
+sudo make test                                 # 1단계. 위험 0
+sudo make test-detached                        # 1.5단계. 여기서 판정이 나온다
+sudo I_HAVE_CONSOLE=1 make enable-sshd         # 3단계. 콘솔 확보 후에만
+sudo make collect && sudo make disable         # 결과 수집 + 원복
+
+# S4 inode 안정성
+cd bench/inode && make && sudo make test
+sudo make test-apt                             # 실제 패키지 재설치 포함
+```
+
+측정 결과는 각 `out/` 에 들어가고 **커밋 대상이다.** 서브 PC 에서 재고 맥북에서
+읽는 유일한 통로다. `run.sh`·`make test` 가 끝에 `git add` 명령을 찍어준다.
+
+### 서버
+
+```sh
+cd server
+./gradlew build                    # 컴파일 + 테스트 + bootJar
+./gradlew generateProto            # proto/*.proto → Java (protobuf + grpc)
+./gradlew test --tests '*WarrantServerApplicationTests'    # ← 테스트 하나만
+```
+
+**`bootRun` 은 아직 뜨지 않는다.** datasource·bean 이 전부 주석이라 컴파일과
+`bootJar` 까지만 검증돼 있다. 테스트도 0개다 (`failOnNoDiscoveredTests = false`).
+
+`proto/` 를 고치면 `server/build.gradle` 의 `srcDir '../proto'` 를 통해 자동으로
+다시 생성된다 — **`.proto` 수정 뒤 `./gradlew generateProto compileJava` 로
+세 언어 중 최소한 Java 쪽은 깨지지 않았는지 확인한다.** Go·C 생성물은 아직 없다.
+
+### 웹 (범위 밖, 동결)
+
+```sh
+cd web && npm install
+npm run build                      # tsc -b && vite build
+npm run build:single               # 의존성 없는 단일 HTML (공유용)
+```
 
 ## 리포지토리 구조 (모노레포)
 
